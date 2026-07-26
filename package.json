@@ -1,0 +1,19 @@
+{
+    "name": "gaming-cafe-management",
+    "version": "1.0.0",
+    "description": "Gaming Cafe Management Software",
+    "main": "main.js",
+    "type": "commonjs",
+    "scripts": {
+        "start": "electron .",
+        "build-css": "tailwindcss -i ./src/css/style.css -o ./build/output.css --watch"
+    },
+    "author": "",
+    "license": "ISC",
+    "devDependencies": {
+        "autoprefixer": "^10.5.2",
+        "electron": "^43.2.0",
+        "postcss": "^8.5.16",
+        "tailwindcss": "^3.4.19"
+    }
+}
