@@ -170,7 +170,6 @@ function createHeader(page) {
     return `<div class="app-header">
         <button class="header-hamburger" id="hamburger-btn">☰</button>
         <div class="header-title"><h1>${title}</h1><p>${sub}</p></div>
-        <div class="header-search"><span class="search-icon">🔍</span><input type="text" placeholder="Search..." id="global-search"></div>
         <div class="header-actions">
             <button class="btn-new-session" id="header-new-session">+ New Session</button>
             <div class="header-bell" id="header-bell">🔔${notifications > 0 ? `<span class="badge">${notifications}</span>` : ""}</div>
@@ -309,6 +308,8 @@ function pageCustomers() {
     const list = cachedCustomers;
     const totalVisits = list.reduce((s, c) => s + (c.visits || 0), 0);
     const totalSpent = list.reduce((s, c) => s + (c.totalSpent || 0), 0);
+    const tierCounts = { Bronze: 0, Silver: 0, Gold: 0, Platinum: 0 };
+    list.forEach(c => { tierCounts[c.tier || "Bronze"]++; });
     return `<div class="page-enter">
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px">
             <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(99,102,241,.15)">👥</div><div class="stat-info"><div class="stat-label">TOTAL CUSTOMERS</div><div class="stat-value">${list.length}</div></div></div></div>
@@ -316,24 +317,38 @@ function pageCustomers() {
             <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(16,185,129,.15)">💰</div><div class="stat-info"><div class="stat-label">TOTAL SPENT</div><div class="stat-value">${fmt(totalSpent)}</div></div></div></div>
             <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(245,158,11,.15)">⭐</div><div class="stat-info"><div class="stat-label">AVG SPENT</div><div class="stat-value">${list.length ? fmt(Math.round(totalSpent / list.length)) : fmt(0)}</div></div></div></div>
         </div>
-        <div style="display:flex;justify-content:flex-end;margin-bottom:16px"><button class="btn-primary" id="btn-add-customer">+ Add Customer</button></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div style="position:relative;flex:1;max-width:360px"><span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted)">🔍</span><input id="cust-search" type="text" placeholder="Search by name, phone, tier..." class="form-input" style="padding-left:36px"/></div>
+            <button class="btn-primary" id="btn-add-customer">+ Add Customer</button>
+        </div>
         ${list.length === 0 ? '<div class="dash-card" style="text-align:center;padding:40px;color:var(--text-muted)"><div style="font-size:40px;margin-bottom:8px">👥</div><p>No customers yet</p></div>' :
-        `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">${list.map(c => {
-            const tc = { Bronze: "var(--neon-yellow)", Silver: "#c0c0c0", Gold: "#ffd700", Platinum: "var(--accent)" };
-            return `<div class="dash-card">
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-                    <div style="width:40px;height:40px;border-radius:50%;background:${avatarColor(c.name)};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px">${(c.name || "?").charAt(0).toUpperCase()}</div>
-                    <div style="flex:1"><div style="font-weight:700;color:#fff;font-size:14px">${c.name}</div><div style="font-size:11px;color:var(--text-muted)">${c.phone || "No phone"}</div></div>
-                    <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:${tc[c.tier] || "var(--neon-yellow)"}20;color:${tc[c.tier] || "var(--neon-yellow)"};font-weight:600">${c.tier || "Bronze"}</span>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
-                    <div style="background:var(--bg-deep);border-radius:8px;padding:8px"><div style="font-size:10px;color:var(--text-muted)">Visits</div><div style="font-weight:700;color:#fff">${c.visits || 0}</div></div>
-                    <div style="background:var(--bg-deep);border-radius:8px;padding:8px"><div style="font-size:10px;color:var(--text-muted)">Spent</div><div style="font-weight:700;color:#fff">${fmt(c.totalSpent || 0)}</div></div>
-                    <div style="background:var(--bg-deep);border-radius:8px;padding:8px"><div style="font-size:10px;color:var(--text-muted)">Points</div><div style="font-weight:700;color:var(--neon-green)">${c.points || 0}</div></div>
-                </div>
-                <button class="btn-del-customer btn-outline btn-full btn-sm" data-customer="${c.id}" style="margin-top:10px;color:var(--neon-red);border-color:rgba(239,68,68,.3)">Remove</button>
-            </div>`}).join("")}</div>`}
+        `<div id="customer-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">${renderCustomerCards(list)}</div>`}
     </div>`;
+}
+function renderCustomerCards(list) {
+    const tc = { Bronze: "var(--neon-yellow)", Silver: "#c0c0c0", Gold: "#ffd700", Platinum: "var(--accent)" };
+    const tierEmoji = { Bronze: "🥉", Silver: "🥈", Gold: "🥇", Platinum: "💎" };
+    return list.map(c => {
+        const customerBookings = cachedBookings.filter(b => b.customerName === c.name);
+        const recentBookings = customerBookings.slice(-3).reverse();
+        return `<div class="dash-card">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                <div style="width:40px;height:40px;border-radius:50%;background:${avatarColor(c.name)};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px">${(c.name || "?").charAt(0).toUpperCase()}</div>
+                <div style="flex:1"><div style="font-weight:700;color:#fff;font-size:14px">${c.name}</div><div style="font-size:11px;color:var(--text-muted)">${c.phone || "No phone"}</div></div>
+                <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:${tc[c.tier] || tc.Bronze}20;color:${tc[c.tier] || tc.Bronze};font-weight:600">${tierEmoji[c.tier] || "🥉"} ${c.tier || "Bronze"}</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;text-align:center;margin-bottom:10px">
+                <div style="background:var(--bg-deep);border-radius:8px;padding:6px"><div style="font-size:10px;color:var(--text-muted)">Visits</div><div style="font-weight:700;color:#fff">${c.visits || 0}</div></div>
+                <div style="background:var(--bg-deep);border-radius:8px;padding:6px"><div style="font-size:10px;color:var(--text-muted)">Spent</div><div style="font-weight:700;color:var(--neon-green)">${fmt(c.totalSpent || 0)}</div></div>
+                <div style="background:var(--bg-deep);border-radius:8px;padding:6px"><div style="font-size:10px;color:var(--text-muted)">Points</div><div style="font-weight:700;color:var(--accent)">${c.points || 0}</div></div>
+            </div>
+            ${recentBookings.length > 0 ? `<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Recent Bookings</div>${recentBookings.map(b => `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 6px;background:var(--bg-deep);border-radius:6px;margin-bottom:3px;font-size:11px"><span style="color:var(--text-secondary)">${b.deviceName} · ${b.date}</span><span class="${b.status === 'upcoming' ? 'badge-upcoming' : 'badge-completed'}" style="font-size:9px;padding:1px 6px;border-radius:10px">${b.status}</span></div>`).join("")}</div>` : ''}
+            <div style="display:flex;gap:6px">
+                <button class="btn-edit-customer btn-outline btn-sm" data-customer="${c.id}" style="flex:1;font-size:11px">✏️ Edit</button>
+                <button class="btn-del-customer btn-outline btn-sm" data-customer="${c.id}" style="flex:1;font-size:11px;color:var(--neon-red);border-color:rgba(239,68,68,.3)">🗑️ Remove</button>
+            </div>
+        </div>`;
+    }).join("");
 }
 
 // ─── BOOKINGS PAGE ───
@@ -402,67 +417,357 @@ function pageExpenses() {
 function pageRevenue() {
     const completed = cachedSessions.filter(s => s.status === "completed");
     const sessionRev = completed.reduce((s, x) => s + (x.amount || 0), 0);
-    const refreshRev = cachedRefreshment.todayRevenue || 0;
+    const refreshRev = cachedRefreshment.sales ? cachedRefreshment.sales.reduce((s, x) => s + (x.amount || 0), 0) : (cachedRefreshment.todayRevenue || 0);
     const totalRev = sessionRev + refreshRev;
     const todayRev = completed.filter(s => s.date === todayKey()).reduce((s, x) => s + (x.amount || 0), 0);
+    const todayRefresh = cachedRefreshment.sales ? cachedRefreshment.sales.filter(s => s.date === todayKey()).reduce((s, x) => s + (x.amount || 0), 0) : 0;
+    const todayTotal = todayRev + todayRefresh;
+    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+    const yKey = yesterday.toISOString().split("T")[0];
+    const yestRev = completed.filter(s => s.date === yKey).reduce((s, x) => s + (x.amount || 0), 0);
+    const revChange = yestRev > 0 ? Math.round(((todayRev - yestRev) / yestRev) * 100) : 0;
+    const avgSessionRev = completed.length ? Math.round(sessionRev / completed.length) : 0;
+    const peakRev = completed.length ? Math.max(...completed.map(s => s.amount || 0)) : 0;
+
+    // Hourly chart
     const hours = [];
     for (let i = 0; i < 24; i++) {
-        const h = String(i).padStart(2, "0") + ":00";
         const rev = completed.filter(s => new Date(s.startTime).getHours() === i).reduce((s, x) => s + (x.amount || 0), 0);
-        hours.push({ label: h, value: rev });
+        hours.push({ label: String(i).padStart(2, "0") + ":00", value: rev });
     }
     const maxRev = Math.max(...hours.map(h => h.value), 1);
-    const w = 700, h2 = 150, pad = 40;
-    const points = hours.map((d, i) => `${pad + (i / 23) * (w - pad * 2)},${h2 - (d.value / maxRev) * (h2 - 20)}`).join(" ");
+    const w = 700, h2 = 200, pad = 50;
+    const points = hours.map((d, i) => `${pad + (i / 23) * (w - pad * 2)},${h2 - (d.value / maxRev) * (h2 - 30)}`).join(" ");
     const areaPoints = points + ` ${pad + (w - pad * 2)},${h2} ${pad},${h2}`;
+
+    // Last 7 days
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date(); d.setDate(d.getDate() - i);
+        const key = d.toISOString().split("T")[0];
+        const dayLabel = d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric" });
+        const dayRev = completed.filter(s => s.date === key).reduce((s, x) => s + (x.amount || 0), 0);
+        days.push({ label: dayLabel, value: dayRev, date: key });
+    }
+    const maxDay = Math.max(...days.map(d => d.value), 1);
+
+    // Revenue by device
+    const revByDevice = {};
+    completed.forEach(s => { revByDevice[s.deviceName] = (revByDevice[s.deviceName] || 0) + (s.amount || 0); });
+    const sortedDevices = Object.entries(revByDevice).sort((a, b) => b[1] - a[1]);
+    const maxDeviceRev = sortedDevices[0] ? sortedDevices[0][1] : 1;
+
+    // Top sessions
+    const topSessions = [...completed].sort((a, b) => (b.amount || 0) - (a.amount || 0)).slice(0, 5);
+
     return `<div class="page-enter">
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px">
             <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(16,185,129,.15)">💰</div><div class="stat-info"><div class="stat-label">TOTAL REVENUE</div><div class="stat-value">${fmt(totalRev)}</div></div></div></div>
-            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(99,102,241,.15)">📈</div><div class="stat-info"><div class="stat-label">TODAY'S REVENUE</div><div class="stat-value">${fmt(todayRev)}</div></div></div></div>
-            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(6,182,212,.15)">🎮</div><div class="stat-info"><div class="stat-label">SESSION REVENUE</div><div class="stat-value">${fmt(sessionRev)}</div></div></div></div>
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(99,102,241,.15)">📈</div><div class="stat-info"><div class="stat-label">TODAY'S REVENUE</div><div class="stat-value">${fmt(todayTotal)}</div><div style="font-size:10px;color:${revChange >= 0 ? "var(--neon-green)" : "var(--neon-red)"};margin-top:2px">${revChange >= 0 ? "↑" : "↓"} ${Math.abs(revChange)}% vs yesterday</div></div></div></div>
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(6,182,212,.15)">🎮</div><div class="stat-info"><div class="stat-label">AVG PER SESSION</div><div class="stat-value">${fmt(avgSessionRev)}</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px">${completed.length} total sessions</div></div></div></div>
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(245,158,11,.15)">🔥</div><div class="stat-info"><div class="stat-label">PEAK SESSION</div><div class="stat-value">${fmt(peakRev)}</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px">Highest single session</div></div></div></div>
         </div>
-        <div class="dash-card"><div class="section-header"><h3>Revenue Overview</h3></div>
-            <svg viewBox="0 0 ${w} ${h2 + 20}" style="width:100%;height:auto">
-                <defs><linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--primary)" stop-opacity="0.3"/><stop offset="100%" stop-color="var(--primary)" stop-opacity="0"/></linearGradient></defs>
-                ${[0, 0.25, 0.5, 0.75, 1].map(p => `<line x1="${pad}" y1="${h2 - p * (h2 - 20)}" x2="${w - pad}" y2="${h2 - p * (h2 - 20)}" stroke="var(--card-border)" stroke-dasharray="4 4"/>`).join("")}
-                <polygon points="${areaPoints}" fill="url(#chartGrad)"/>
-                <polyline points="${points}" fill="none" stroke="var(--primary)" stroke-width="2.5"/>
-                ${hours.filter((_, i) => i % 4 === 0).map((d, i) => `<text x="${pad + (i * 4 / 23) * (w - pad * 2)}" y="${h2 + 14}" text-anchor="middle" style="font-size:9px;fill:var(--text-muted)">${d.label}</text>`).join("")}
-            </svg>
+
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:20px">
+            <div class="dash-card">
+                <h3 style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px">Hourly Revenue</h3>
+                <p style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Revenue distribution across hours</p>
+                <svg viewBox="0 0 ${w} ${h2 + 28}" style="width:100%;height:auto">
+                    <defs><linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--primary)" stop-opacity="0.35"/><stop offset="100%" stop-color="var(--primary)" stop-opacity="0"/></linearGradient></defs>
+                    ${[0, 0.25, 0.5, 0.75, 1].map(p => `<line x1="${pad}" y1="${h2 - p * (h2 - 30)}" x2="${w - pad}" y2="${h2 - p * (h2 - 30)}" stroke="var(--card-border)" stroke-dasharray="4 4"/><text x="${pad - 8}" y="${h2 - p * (h2 - 30) + 4}" text-anchor="end" style="font-size:9px;fill:var(--text-muted)">${fmt(Math.round(maxRev * p))}</text>`).join("")}
+                    <polygon points="${areaPoints}" fill="url(#revGrad)"/>
+                    <polyline points="${points}" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linejoin="round"/>
+                    ${hours.map((d, i) => `<circle cx="${pad + (i / 23) * (w - pad * 2)}" cy="${h2 - (d.value / maxRev) * (h2 - 30)}" r="3" fill="var(--primary)" opacity="0"/><title>${d.label}: ${fmt(d.value)}</title>`).join("")}
+                    ${hours.filter((_, i) => i % 3 === 0).map((d, i) => `<text x="${pad + (i * 3 / 23) * (w - pad * 2)}" y="${h2 + 18}" text-anchor="middle" style="font-size:9px;fill:var(--text-muted)">${d.label}</text>`).join("")}
+                </svg>
+            </div>
+            <div class="dash-card">
+                <h3 style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px">Revenue Split</h3>
+                <p style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Sessions vs Refreshments</p>
+                <div style="display:flex;flex-direction:column;gap:12px">
+                    <div style="background:var(--bg-deep);border-radius:10px;padding:14px;border:1px solid var(--card-border)">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;color:var(--text-muted)">🎮 Sessions</span><span style="font-size:11px;color:var(--text-muted)">${totalRev > 0 ? Math.round((sessionRev / totalRev) * 100) : 0}%</span></div>
+                        <div style="font-size:20px;font-weight:800;color:var(--primary)">${fmt(sessionRev)}</div>
+                        <div style="height:6px;background:var(--surface);border-radius:3px;margin-top:8px;overflow:hidden"><div style="height:100%;width:${totalRev > 0 ? Math.round((sessionRev / totalRev) * 100) : 0}%;background:var(--primary);border-radius:3px"></div></div>
+                    </div>
+                    <div style="background:var(--bg-deep);border-radius:10px;padding:14px;border:1px solid var(--card-border)">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;color:var(--text-muted)">📦 Refreshments</span><span style="font-size:11px;color:var(--text-muted)">${totalRev > 0 ? Math.round((refreshRev / totalRev) * 100) : 0}%</span></div>
+                        <div style="font-size:20px;font-weight:800;color:var(--accent)">${fmt(refreshRev)}</div>
+                        <div style="height:6px;background:var(--surface);border-radius:3px;margin-top:8px;overflow:hidden"><div style="height:100%;width:${totalRev > 0 ? Math.round((refreshRev / totalRev) * 100) : 0}%;background:var(--accent);border-radius:3px"></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+            <div class="dash-card">
+                <h3 style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px">Last 7 Days</h3>
+                <p style="font-size:11px;color:var(--text-muted);margin-bottom:16px">Daily revenue trend</p>
+                <div style="display:flex;align-items:flex-end;gap:8px;height:140px">
+                    ${days.map(d => {
+                        const pct = maxDay > 0 ? (d.value / maxDay) * 100 : 0;
+                        const isToday = d.date === todayKey();
+                        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;height:100%;justify-content:flex-end">
+                            <div style="font-size:10px;color:var(--neon-green);font-weight:600;margin-bottom:4px">${d.value > 0 ? fmt(d.value) : ""}</div>
+                            <div style="width:100%;height:${Math.max(pct, 3)}%;background:${isToday ? "linear-gradient(180deg,var(--primary),var(--accent))" : "var(--surface)"};border-radius:6px;border:1px solid ${isToday ? "var(--primary)" : "var(--card-border)"};min-height:4px;transition:height .6s ease"></div>
+                            <div style="font-size:9px;color:${isToday ? "#fff" : "var(--text-muted)"};margin-top:6px;font-weight:${isToday ? "700" : "400"};white-space:nowrap">${d.label}</div>
+                        </div>`;
+                    }).join("")}
+                </div>
+            </div>
+            <div class="dash-card">
+                <h3 style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px">Revenue by Device</h3>
+                <p style="font-size:11px;color:var(--text-muted);margin-bottom:16px">Which devices earn the most</p>
+                ${sortedDevices.length === 0 ? '<p style="color:var(--text-muted);text-align:center;padding:20px">No data</p>' :
+                sortedDevices.map(([name, rev]) => {
+                    const pct = Math.round((rev / maxDeviceRev) * 100);
+                    const totalPct = sessionRev > 0 ? Math.round((rev / sessionRev) * 100) : 0;
+                    const dev = cachedDevices.find(d => d.name === name);
+                    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><span style="font-size:16px;flex-shrink:0">${dev?.icon || "🎮"}</span><div style="flex:1"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:12px;color:var(--text-secondary);font-weight:600">${name}</span><span style="font-size:11px;color:var(--neon-green);font-weight:600">${fmt(rev)} (${totalPct}%)</span></div><div style="height:8px;background:var(--bg-deep);border-radius:4px;overflow:hidden;border:1px solid var(--card-border)"><div style="height:100%;background:linear-gradient(90deg,var(--primary),var(--accent));border-radius:4px;width:${pct}%;transition:width .8s ease"></div></div></div></div>`;
+                }).join("")}
+            </div>
+        </div>
+
+        <div class="dash-card">
+            <h3 style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px">Top Earning Sessions</h3>
+            <p style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Highest revenue sessions</p>
+            ${topSessions.length === 0 ? '<p style="color:var(--text-muted);text-align:center;padding:20px">No sessions yet</p>' :
+            `<table class="data-table"><thead><tr><th>#</th><th>Customer</th><th>Device</th><th style="text-align:right">Duration</th><th style="text-align:right">Amount</th><th>Date</th></tr></thead>
+            <tbody>${topSessions.map((s, i) => `<tr><td style="color:${i === 0 ? "var(--neon-yellow)" : i < 3 ? "var(--accent)" : "var(--text-muted)"};font-weight:700;font-size:14px">${i === 0 ? "👑" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}</td>
+            <td style="color:#fff;font-weight:600">${s.customerName}</td>
+            <td>${s.deviceName}</td>
+            <td style="text-align:right">${s.durationMinutes || "?"}m</td>
+            <td style="text-align:right;color:var(--neon-green);font-weight:700;font-size:14px">${fmt(s.amount)}</td>
+            <td style="color:var(--text-muted)">${s.date}</td></tr>`).join("")}</tbody></table>`}
         </div>
     </div>`;
 }
 
 // ─── REPORTS PAGE ───
 function pageReports() {
+    const tabs = [
+        { id: "overview", icon: "📊", label: "Overview" },
+        { id: "revenue", icon: "💰", label: "Revenue" },
+        { id: "devices", icon: "🖥️", label: "Devices" },
+        { id: "customers", icon: "👥", label: "Customers" },
+        { id: "expenses", icon: "💸", label: "Expenses" }
+    ];
     return `<div class="page-enter">
-        <div style="display:flex;gap:8px;margin-bottom:20px">
-            <button data-report="revenue" class="btn-primary btn-sm" style="${reportTab !== "revenue" ? "background:var(--surface);color:var(--text-secondary)" : ""}">💰 Revenue</button>
-            <button data-report="devices" class="btn-primary btn-sm" style="${reportTab !== "devices" ? "background:var(--surface);color:var(--text-secondary)" : ""}">🖥️ Device Utilization</button>
-            <button data-report="customers" class="btn-primary btn-sm" style="${reportTab !== "customers" ? "background:var(--surface);color:var(--text-secondary)" : ""}">👥 Customer Leaderboard</button>
-        </div>
+        <div style="display:flex;gap:6px;margin-bottom:20px;background:var(--surface);border-radius:12px;padding:4px;border:1px solid var(--card-border)">${tabs.map(t => `<button data-report="${t.id}" class="btn-report-tab" style="flex:1;padding:10px 8px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;background:${reportTab === t.id ? "var(--primary)" : "transparent"};color:${reportTab === t.id ? "#fff" : "var(--text-muted)"}">${t.icon} ${t.label}</button>`).join("")}</div>
         <div id="report-content"></div>
     </div>`;
 }
+
 function loadReportContent() {
     const el = document.getElementById("report-content"); if (!el) return;
-    if (reportTab === "revenue") {
-        const sessions = cachedSessions.filter(s => s.status === "completed");
-        const totalRev = sessions.reduce((s, x) => s + (x.amount || 0), 0);
-        const todayRev = sessions.filter(s => s.date === todayKey()).reduce((s, x) => s + (x.amount || 0), 0);
-        el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
-            <div class="dash-card"><p style="font-size:11px;color:var(--text-muted)">Total Session Revenue</p><h2 style="font-size:24px;font-weight:800;color:#fff;margin-top:6px">${fmt(totalRev)}</h2></div>
-            <div class="dash-card"><p style="font-size:11px;color:var(--text-muted)">Today Session Revenue</p><h2 style="font-size:24px;font-weight:800;color:var(--accent);margin-top:6px">${fmt(todayRev)}</h2></div>
-            <div class="dash-card"><p style="font-size:11px;color:var(--text-muted)">Today Refreshment Revenue</p><h2 style="font-size:24px;font-weight:800;color:var(--neon-green);margin-top:6px">${fmt(cachedRefreshment.todayRevenue || 0)}</h2></div></div>`;
+    const completed = cachedSessions.filter(s => s.status === "completed");
+    const today = todayKey();
+    const todaySess = completed.filter(s => s.date === today);
+    const yesterdaySess = completed.filter(s => { const d = new Date(s.startTime); d.setDate(d.getDate() - 1); return d.toISOString().split("T")[0] === today; });
+    const totalRev = completed.reduce((s, x) => s + (x.amount || 0), 0);
+    const todayRev = todaySess.reduce((s, x) => s + (x.amount || 0), 0);
+    const yesterdayRev = yesterdaySess.reduce((s, x) => s + (x.amount || 0), 0);
+    const totalExp = cachedExpenses.reduce((s, e) => s + (e.amount || 0), 0);
+    const refreshRev = cachedRefreshment.todayRevenue || 0;
+    const profit = totalRev - totalExp;
+    const netToday = todayRev + refreshRev - cachedExpenses.filter(e => e.date === today).reduce((s, e) => s + (e.amount || 0), 0);
+
+    if (reportTab === "overview") {
+        const avgSession = completed.length ? Math.round(completed.reduce((s, x) => s + (x.durationMinutes || 0), 0) / completed.length) : 0;
+        const peakHours = {};
+        completed.forEach(s => { const h = new Date(s.startTime).getHours(); peakHours[h] = (peakHours[h] || 0) + 1; });
+        const peakHr = Object.entries(peakHours).sort((a, b) => b[1] - a[1])[0];
+        const tierCounts = {};
+        cachedCustomers.forEach(c => { tierCounts[c.tier || "Bronze"] = (tierCounts[c.tier || "Bronze"] || 0) + 1; });
+        const expByCat = {};
+        cachedExpenses.forEach(e => { expByCat[e.category || "Other"] = (expByCat[e.category || "Other"] || 0) + (e.amount || 0); });
+        const topExpCat = Object.entries(expByCat).sort((a, b) => b[1] - a[1])[0];
+
+        el.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px">
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(16,185,129,.15)">💰</div><div class="stat-info"><div class="stat-label">TOTAL REVENUE</div><div class="stat-value">${fmt(totalRev)}</div></div></div></div>
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(239,68,68,.15)">💸</div><div class="stat-info"><div class="stat-label">TOTAL EXPENSES</div><div class="stat-value">${fmt(totalExp)}</div></div></div></div>
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(99,102,241,.15)">📈</div><div class="stat-info"><div class="stat-label">NET PROFIT</div><div class="stat-value" style="color:${profit >= 0 ? "var(--neon-green)" : "var(--neon-red)"}">${fmt(profit)}</div></div></div></div>
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(245,158,11,.15)">📋</div><div class="stat-info"><div class="stat-label">TOTAL SESSIONS</div><div class="stat-value">${completed.length}</div></div></div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+            <div class="dash-card">
+                <h3 style="font-size:14px;font-weight:700;color:#fff;margin-bottom:14px">Today's Summary</h3>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                    <div style="background:var(--bg-deep);border-radius:10px;padding:12px;border:1px solid var(--card-border)"><div style="font-size:11px;color:var(--text-muted)">Sessions</div><div style="font-size:20px;font-weight:800;color:#fff;margin-top:4px">${todaySess.length}</div></div>
+                    <div style="background:var(--bg-deep);border-radius:10px;padding:12px;border:1px solid var(--card-border)"><div style="font-size:11px;color:var(--text-muted)">Revenue</div><div style="font-size:20px;font-weight:800;color:var(--neon-green);margin-top:4px">${fmt(todayRev)}</div></div>
+                    <div style="background:var(--bg-deep);border-radius:10px;padding:12px;border:1px solid var(--card-border)"><div style="font-size:11px;color:var(--text-muted)">Refreshments</div><div style="font-size:20px;font-weight:800;color:var(--accent);margin-top:4px">${fmt(refreshRev)}</div></div>
+                    <div style="background:var(--bg-deep);border-radius:10px;padding:12px;border:1px solid var(--card-border)"><div style="font-size:11px;color:var(--text-muted)">Net Today</div><div style="font-size:20px;font-weight:800;color:${netToday >= 0 ? "var(--neon-green)" : "var(--neon-red)"};margin-top:4px">${fmt(netToday)}</div></div>
+                </div>
+            </div>
+            <div class="dash-card">
+                <h3 style="font-size:14px;font-weight:700;color:#fff;margin-bottom:14px">Quick Stats</h3>
+                <div style="display:flex;flex-direction:column;gap:10px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><span style="font-size:12px;color:var(--text-muted)">Avg Session Duration</span><span style="font-size:14px;font-weight:700;color:#fff">${avgSession} min</span></div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><span style="font-size:12px;color:var(--text-muted)">Peak Hour</span><span style="font-size:14px;font-weight:700;color:#fff">${peakHr ? peakHr[0] + ":00" : "N/A"}</span></div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><span style="font-size:12px;color:var(--text-muted)">Total Customers</span><span style="font-size:14px;font-weight:700;color:#fff">${cachedCustomers.length}</span></div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><span style="font-size:12px;color:var(--text-muted)">Top Expense Category</span><span style="font-size:14px;font-weight:700;color:#fff">${topExpCat ? topExpCat[0] : "None"}</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="dash-card">
+            <h3 style="font-size:14px;font-weight:700;color:#fff;margin-bottom:14px">Customer Tier Distribution</h3>
+            <div style="display:flex;gap:12px">${["Bronze","Silver","Gold","Platinum"].map(tier => {
+                const count = tierCounts[tier] || 0;
+                const total = cachedCustomers.length || 1;
+                const pct = Math.round((count / total) * 100);
+                const colors = { Bronze: "#cd7f32", Silver: "#c0c0c0", Gold: "#ffd700", Platinum: "#e5e4e2" };
+                return `<div style="flex:1;background:var(--bg-deep);border-radius:10px;padding:14px;border:1px solid var(--card-border);text-align:center">
+                    <div style="width:48px;height:48px;border-radius:50%;background:${colors[tier]}20;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;font-size:20px">${tier === "Bronze" ? "🥉" : tier === "Silver" ? "🥈" : tier === "Gold" ? "🥇" : "💎"}</div>
+                    <div style="font-size:13px;font-weight:700;color:#fff">${count}</div>
+                    <div style="font-size:11px;color:var(--text-muted)">${tier}</div>
+                    <div style="height:4px;background:var(--surface);border-radius:2px;margin-top:8px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${colors[tier]};border-radius:2px"></div></div>
+                </div>`;
+            }).join("")}</div>
+        </div>`;
+
+    } else if (reportTab === "revenue") {
+        const hours = [];
+        for (let i = 0; i < 24; i++) {
+            const rev = completed.filter(s => new Date(s.startTime).getHours() === i).reduce((s, x) => s + (x.amount || 0), 0);
+            hours.push({ label: String(i).padStart(2, "0") + ":00", value: rev });
+        }
+        const maxRev = Math.max(...hours.map(h => h.value), 1);
+        const w = 700, h2 = 180, pad = 50;
+        const points = hours.map((d, i) => `${pad + (i / 23) * (w - pad * 2)},${h2 - (d.value / maxRev) * (h2 - 20)}`).join(" ");
+        const areaPoints = points + ` ${pad + (w - pad * 2)},${h2} ${pad},${h2}`;
+        const revByDevice = {};
+        completed.forEach(s => { revByDevice[s.deviceName] = (revByDevice[s.deviceName] || 0) + (s.amount || 0); });
+        const sortedDevices = Object.entries(revByDevice).sort((a, b) => b[1] - a[1]);
+
+        el.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px">
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(16,185,129,.15)">💰</div><div class="stat-info"><div class="stat-label">TOTAL REVENUE</div><div class="stat-value">${fmt(totalRev)}</div></div></div></div>
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(99,102,241,.15)">📈</div><div class="stat-info"><div class="stat-label">TODAY</div><div class="stat-value">${fmt(todayRev)}</div></div></div></div>
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(6,182,212,.15)">🕐</div><div class="stat-info"><div class="stat-label">YESTERDAY</div><div class="stat-value">${fmt(yesterdayRev)}</div></div></div></div>
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(245,158,11,.15)">📦</div><div class="stat-info"><div class="stat-label">REFRESHMENTS</div><div class="stat-value">${fmt(refreshRev)}</div></div></div></div>
+        </div>
+        <div class="dash-card" style="margin-bottom:20px">
+            <h3 style="font-size:14px;font-weight:700;color:#fff;margin-bottom:14px">Hourly Revenue</h3>
+            <svg viewBox="0 0 ${w} ${h2 + 24}" style="width:100%;height:auto">
+                <defs><linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--primary)" stop-opacity="0.3"/><stop offset="100%" stop-color="var(--primary)" stop-opacity="0"/></linearGradient></defs>
+                ${[0, 0.25, 0.5, 0.75, 1].map(p => `<line x1="${pad}" y1="${h2 - p * (h2 - 20)}" x2="${w - pad}" y2="${h2 - p * (h2 - 20)}" stroke="var(--card-border)" stroke-dasharray="4 4"/><text x="${pad - 8}" y="${h2 - p * (h2 - 20) + 4}" text-anchor="end" style="font-size:9px;fill:var(--text-muted)">${fmt(Math.round(maxRev * p))}</text>`).join("")}
+                <polygon points="${areaPoints}" fill="url(#chartGrad)"/>
+                <polyline points="${points}" fill="none" stroke="var(--primary)" stroke-width="2.5"/>
+                ${hours.map((d, i) => i % 4 === 0 ? `<text x="${pad + (i / 23) * (w - pad * 2)}" y="${h2 + 16}" text-anchor="middle" style="font-size:9px;fill:var(--text-muted)">${d.label}</text>` : "").join("")}
+            </svg>
+        </div>
+        <div class="dash-card">
+            <h3 style="font-size:14px;font-weight:700;color:#fff;margin-bottom:14px">Revenue by Device</h3>
+            ${sortedDevices.length === 0 ? '<p style="color:var(--text-muted);text-align:center;padding:20px">No data</p>' :
+            sortedDevices.map(([name, rev]) => {
+                const pct = Math.round((rev / totalRev) * 100);
+                return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><span style="width:70px;font-size:13px;color:var(--text-secondary);font-weight:600">${name}</span><div style="flex:1;background:var(--bg-deep);border-radius:6px;height:32px;overflow:hidden;border:1px solid var(--card-border)"><div style="height:100%;background:linear-gradient(90deg,var(--primary),var(--accent));border-radius:6px;display:flex;align-items:center;padding-left:12px;width:${pct}%;min-width:40px;transition:width .8s ease"><span style="font-size:11px;color:#fff;font-weight:700">${fmt(rev)} (${pct}%)</span></div></div></div>`;
+            }).join("")}
+        </div>`;
+
     } else if (reportTab === "devices") {
-        const counts = {}; cachedSessions.filter(s => s.status === "completed").forEach(s => { counts[s.deviceName] = (counts[s.deviceName] || 0) + 1; });
-        const max = Math.max(...Object.values(counts), 1);
-        el.innerHTML = `<div class="dash-card"><h3 style="font-weight:700;color:#fff;margin-bottom:16px">Device Usage</h3>${Object.entries(counts).map(([name, count]) => `<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><span style="width:80px;font-size:13px;color:var(--text-secondary)">${name}</span><div style="flex:1;background:var(--bg-deep);border-radius:6px;height:28px;overflow:hidden;border:1px solid var(--card-border)"><div style="height:100%;background:linear-gradient(90deg,var(--primary),var(--accent));border-radius:6px;display:flex;align-items:center;padding-left:10px;width:${Math.round(count / max * 100)}%;transition:width .8s ease"><span style="font-size:11px;color:#fff;font-weight:700">${count} sessions</span></div></div></div>`).join("") || '<p style="color:var(--text-muted)">No data yet</p>'}</div>`;
-    } else {
-        const sorted = [...cachedCustomers].sort((a, b) => (b.totalSpent || 0) - (a.totalSpent || 0)).slice(0, 10);
-        el.innerHTML = sorted.length === 0 ? '<div class="dash-card" style="text-align:center;padding:30px;color:var(--text-muted)">No customers yet</div>' :
-        `<div class="dash-card"><table class="data-table"><thead><tr><th>#</th><th>Name</th><th style="text-align:right">Visits</th><th style="text-align:right">Spent</th><th style="text-align:right">Points</th><th style="text-align:right">Tier</th></tr></thead>
-        <tbody>${sorted.map((c, i) => `<tr><td style="color:var(--text-muted)">${i + 1}</td><td style="color:#fff;font-weight:600">${c.name}</td><td style="text-align:right">${c.visits || 0}</td><td style="text-align:right;color:var(--neon-green);font-weight:700">${fmt(c.totalSpent)}</td><td style="text-align:right;color:var(--accent)">${c.points || 0}</td><td style="text-align:right"><span style="padding:3px 10px;border-radius:20px;background:var(--surface);font-size:11px">${c.tier || "Bronze"}</span></td></tr>`).join("")}</tbody></table></div>`;
+        const deviceStats = {};
+        completed.forEach(s => {
+            if (!deviceStats[s.deviceName]) deviceStats[s.deviceName] = { sessions: 0, revenue: 0, totalMins: 0 };
+            deviceStats[s.deviceName].sessions++;
+            deviceStats[s.deviceName].revenue += s.amount || 0;
+            deviceStats[s.deviceName].totalMins += s.durationMinutes || 0;
+        });
+        const maxSessions = Math.max(...Object.values(deviceStats).map(d => d.sessions), 1);
+
+        el.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px">
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(99,102,241,.15)">🎮</div><div class="stat-info"><div class="stat-label">ACTIVE DEVICES</div><div class="stat-value">${cachedDevices.filter(d => d.status !== "maintenance").length}</div></div></div></div>
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(16,185,129,.15)">📊</div><div class="stat-info"><div class="stat-label">TOTAL SESSIONS</div><div class="stat-value">${completed.length}</div></div></div></div>
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(6,182,212,.15)">⏱️</div><div class="stat-info"><div class="stat-label">AVG SESSION</div><div class="stat-value">${completed.length ? Math.round(completed.reduce((s, x) => s + (x.durationMinutes || 0), 0) / completed.length) : 0}m</div></div></div></div>
+        </div>
+        ${Object.entries(deviceStats).length === 0 ? '<div class="dash-card" style="text-align:center;padding:40px;color:var(--text-muted)">No device data yet</div>' :
+        `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px">${Object.entries(deviceStats).map(([name, stat]) => {
+            const avgDur = stat.sessions ? Math.round(stat.totalMins / stat.sessions) : 0;
+            const pct = Math.round((stat.sessions / maxSessions) * 100);
+            const dev = cachedDevices.find(d => d.name === name);
+            return `<div class="dash-card">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span style="font-size:28px">${dev?.icon || "🎮"}</span><div><div style="font-weight:700;color:#fff;font-size:15px">${name}</div><div style="font-size:11px;color:var(--text-muted)">${dev?.type || "console"}</div></div></div>
+                <div style="height:8px;background:var(--bg-deep);border-radius:4px;overflow:hidden;margin-bottom:14px;border:1px solid var(--card-border)"><div style="height:100%;background:linear-gradient(90deg,var(--primary),var(--accent));border-radius:4px;width:${pct}%;transition:width .8s ease"></div></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+                    <div style="text-align:center;padding:8px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><div style="font-size:18px;font-weight:800;color:#fff">${stat.sessions}</div><div style="font-size:10px;color:var(--text-muted)">Sessions</div></div>
+                    <div style="text-align:center;padding:8px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><div style="font-size:18px;font-weight:800;color:var(--neon-green)">${fmt(stat.revenue)}</div><div style="font-size:10px;color:var(--text-muted)">Revenue</div></div>
+                    <div style="text-align:center;padding:8px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><div style="font-size:18px;font-weight:800;color:var(--accent)">${avgDur}m</div><div style="font-size:10px;color:var(--text-muted)">Avg Time</div></div>
+                </div>
+            </div>`;
+        }).join("")}</div>`}`;
+
+    } else if (reportTab === "customers") {
+        const sorted = [...cachedCustomers].sort((a, b) => (b.totalSpent || 0) - (a.totalSpent || 0)).slice(0, 15);
+        const topSpender = sorted[0];
+        const totalSpentAll = cachedCustomers.reduce((s, c) => s + (c.totalSpent || 0), 0);
+        const totalVisits = cachedCustomers.reduce((s, c) => s + (c.visits || 0), 0);
+        const medals = ["🥇", "🥈", "🥉"];
+
+        el.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px">
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(99,102,241,.15)">👥</div><div class="stat-info"><div class="stat-label">TOTAL CUSTOMERS</div><div class="stat-value">${cachedCustomers.length}</div></div></div></div>
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(16,185,129,.15)">💰</div><div class="stat-info"><div class="stat-label">TOTAL SPENT</div><div class="stat-value">${fmt(totalSpentAll)}</div></div></div></div>
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(6,182,212,.15)">📊</div><div class="stat-info"><div class="stat-label">TOTAL VISITS</div><div class="stat-value">${totalVisits}</div></div></div></div>
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(245,158,11,.15)">⭐</div><div class="stat-info"><div class="stat-label">AVG SPENT</div><div class="stat-value">${cachedCustomers.length ? fmt(Math.round(totalSpentAll / cachedCustomers.length)) : fmt(0)}</div></div></div></div>
+        </div>
+        ${topSpender ? `<div class="dash-card" style="margin-bottom:20px;background:linear-gradient(135deg,var(--surface),var(--bg-deep));border:1px solid rgba(245,158,11,.3)">
+            <div style="display:flex;align-items:center;gap:16px"><div style="font-size:42px">👑</div><div><div style="font-size:12px;color:var(--neon-yellow);font-weight:600;text-transform:uppercase;letter-spacing:1px">Top Customer</div><div style="font-size:22px;font-weight:800;color:#fff;margin-top:2px">${topSpender.name}</div><div style="font-size:13px;color:var(--text-muted);margin-top:2px">${topSpender.visits || 0} visits · ${topSpender.tier || "Bronze"} tier · ${fmt(topSpender.totalSpent || 0)} spent</div></div></div>
+        </div>` : ""}
+        <div class="dash-card">
+            <h3 style="font-size:14px;font-weight:700;color:#fff;margin-bottom:14px">Customer Leaderboard</h3>
+            ${sorted.length === 0 ? '<p style="color:var(--text-muted);text-align:center;padding:20px">No customers yet</p>' :
+            `<table class="data-table"><thead><tr><th style="width:50px">#</th><th>Name</th><th style="text-align:right">Visits</th><th style="text-align:right">Spent</th><th style="text-align:right">Points</th><th>Tier</th></tr></thead>
+            <tbody>${sorted.map((c, i) => {
+                const tc = { Bronze: "var(--neon-yellow)", Silver: "#c0c0c0", Gold: "#ffd700", Platinum: "var(--accent)" };
+                return `<tr><td style="color:${i < 3 ? "var(--neon-yellow)" : "var(--text-muted)"};font-weight:700;font-size:15px">${i < 3 ? medals[i] : i + 1}</td>
+                <td style="color:#fff;font-weight:600">${c.name}</td>
+                <td style="text-align:right">${c.visits || 0}</td>
+                <td style="text-align:right;color:var(--neon-green);font-weight:700">${fmt(c.totalSpent)}</td>
+                <td style="text-align:right;color:var(--accent)">${c.points || 0}</td>
+                <td><span style="padding:3px 10px;border-radius:20px;background:${tc[c.tier] || tc.Bronze}20;color:${tc[c.tier] || tc.Bronze};font-size:11px;font-weight:600">${c.tier || "Bronze"}</span></td></tr>`;
+            }).join("")}</tbody></table>`}
+        </div>`;
+
+    } else if (reportTab === "expenses") {
+        const catExp = {};
+        cachedExpenses.forEach(e => { catExp[e.category || "Other"] = (catExp[e.category || "Other"] || 0) + (e.amount || 0); });
+        const sortedCats = Object.entries(catExp).sort((a, b) => b[1] - a[1]);
+        const maxExpCat = sortedCats[0] ? sortedCats[0][1] : 1;
+        const catColors = { "Rent": "#ef4444", "Utilities": "#f59e0b", "Salaries": "#6366f1", "Maintenance": "#06b6d4", "Supplies": "#10b981", "Marketing": "#ec4899", "Other": "#8b5cf6" };
+        const now = new Date();
+        const monthExp = cachedExpenses.filter(e => { const d = new Date(e.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); }).reduce((s, e) => s + (e.amount || 0), 0);
+        const lastMonthExp = cachedExpenses.filter(e => { const d = new Date(e.date); const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1); return d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear(); }).reduce((s, e) => s + (e.amount || 0), 0);
+        const expChange = lastMonthExp > 0 ? Math.round(((monthExp - lastMonthExp) / lastMonthExp) * 100) : 0;
+
+        el.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px">
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(239,68,68,.15)">💸</div><div class="stat-info"><div class="stat-label">TOTAL EXPENSES</div><div class="stat-value">${fmt(totalExp)}</div></div></div></div>
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(245,158,11,.15)">📊</div><div class="stat-info"><div class="stat-label">THIS MONTH</div><div class="stat-value">${fmt(monthExp)}</div></div></div></div>
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(99,102,241,.15)">📈</div><div class="stat-info"><div class="stat-label">VS LAST MONTH</div><div class="stat-value" style="color:${expChange <= 0 ? "var(--neon-green)" : "var(--neon-red)"}">${expChange > 0 ? "+" : ""}${expChange}%</div></div></div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+            <div class="dash-card">
+                <h3 style="font-size:14px;font-weight:700;color:#fff;margin-bottom:14px">Expenses by Category</h3>
+                ${sortedCats.length === 0 ? '<p style="color:var(--text-muted);text-align:center;padding:20px">No expenses</p>' :
+                sortedCats.map(([cat, amt]) => {
+                    const pct = Math.round((amt / maxExpCat) * 100);
+                    const totalPct = totalExp > 0 ? Math.round((amt / totalExp) * 100) : 0;
+                    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><span style="width:80px;font-size:12px;color:var(--text-secondary);font-weight:600">${cat}</span><div style="flex:1;background:var(--bg-deep);border-radius:6px;height:28px;overflow:hidden;border:1px solid var(--card-border)"><div style="height:100%;background:${catColors[cat] || catColors.Other};border-radius:6px;display:flex;align-items:center;padding-left:10px;width:${pct}%;min-width:30px;transition:width .8s ease"><span style="font-size:10px;color:#fff;font-weight:700">${fmt(amt)} (${totalPct}%)</span></div></div></div>`;
+                }).join("")}
+            </div>
+            <div class="dash-card">
+                <h3 style="font-size:14px;font-weight:700;color:#fff;margin-bottom:14px">Recent Expenses</h3>
+                <div style="max-height:250px;overflow-y:auto">
+                ${cachedExpenses.length === 0 ? '<p style="color:var(--text-muted);text-align:center;padding:20px">No expenses</p>' :
+                cachedExpenses.slice(-10).reverse().map(e => `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--card-border)">
+                    <div><div style="font-size:13px;color:#fff;font-weight:600">${e.description || "-"}</div><div style="font-size:11px;color:var(--text-muted)">${e.date} · ${e.category || "Other"}</div></div>
+                    <div style="font-size:13px;font-weight:700;color:var(--neon-red)">${fmt(e.amount)}</div>
+                </div>`).join("")}
+                </div>
+            </div>
+        </div>`;
     }
 }
 
@@ -550,7 +855,7 @@ function pageLogs() {
 
 // ─── SETTINGS PAGE ───
 function pageSettings() {
-    const s = cachedSettings || {}; const gen = s.general || {}, pr = s.pricing || {}, hr = s.hours || {}, se = s.session || {};
+    const s = cachedSettings || {}; const gen = s.general || {}, pr = s.pricing || {}, hr = s.hours || {}, se = s.session || {}, lo = s.loyalty || {};
     const allDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     const openDays = hr.openDays || ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     return `<div class="page-enter">
@@ -581,6 +886,29 @@ function pageSettings() {
                 <div class="form-group"><label>Grace (min)</label><input id="s-grace" type="number" value="${se.graceMinutes || 10}" class="form-input"/></div>
                 <div style="grid-column:span 2;display:flex;align-items:center;justify-content:space-between;background:var(--bg-deep);border-radius:10px;padding:14px;border:1px solid var(--card-border)"><div><h4 style="font-weight:600;color:#fff;font-size:13px;margin:0">Auto-End</h4><p style="font-size:11px;color:var(--text-muted);margin:2px 0 0">End expired sessions automatically</p></div><div id="toggleAutoEnd" class="toggle ${se.autoEnd !== false ? 'on' : 'off'}"><div class="toggle-dot"></div></div></div>
                 <div style="grid-column:span 2;display:flex;align-items:center;justify-content:space-between;background:var(--bg-deep);border-radius:10px;padding:14px;border:1px solid var(--card-border)"><div><h4 style="font-weight:600;color:#fff;font-size:13px;margin:0">Sound</h4><p style="font-size:11px;color:var(--text-muted);margin:2px 0 0">Play alarm when session expires</p></div><div id="toggleSound" class="toggle ${se.soundNotifications ? 'on' : 'off'}"><div class="toggle-dot"></div></div></div>
+            </div></div>
+        <div class="settings-section"><div class="section-head"><span style="font-size:18px">🏆</span><h3>Loyalty Tiers</h3></div>
+            <div class="section-body" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+                <div style="background:var(--bg-deep);border-radius:12px;padding:14px;border:1px solid var(--card-border);text-align:center">
+                    <div style="font-size:24px;margin-bottom:6px">🥉</div>
+                    <div style="font-size:12px;font-weight:600;color:#c0c0c0;margin-bottom:8px">Silver</div>
+                    <div class="form-group" style="margin:0"><label style="font-size:11px">Min Spent (₹)</label><input id="s-tier-silver" type="number" value="${lo.silver || 1000}" class="form-input" style="text-align:center"/></div>
+                </div>
+                <div style="background:var(--bg-deep);border-radius:12px;padding:14px;border:1px solid var(--card-border);text-align:center">
+                    <div style="font-size:24px;margin-bottom:6px">🥇</div>
+                    <div style="font-size:12px;font-weight:600;color:#ffd700;margin-bottom:8px">Gold</div>
+                    <div class="form-group" style="margin:0"><label style="font-size:11px">Min Spent (₹)</label><input id="s-tier-gold" type="number" value="${lo.gold || 3000}" class="form-input" style="text-align:center"/></div>
+                </div>
+                <div style="background:var(--bg-deep);border-radius:12px;padding:14px;border:1px solid var(--card-border);text-align:center">
+                    <div style="font-size:24px;margin-bottom:6px">💎</div>
+                    <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:8px">Platinum</div>
+                    <div class="form-group" style="margin:0"><label style="font-size:11px">Min Spent (₹)</label><input id="s-tier-platinum" type="number" value="${lo.platinum || 6000}" class="form-input" style="text-align:center"/></div>
+                </div>
+                <div style="background:var(--bg-deep);border-radius:12px;padding:14px;border:1px solid var(--card-border);text-align:center">
+                    <div style="font-size:24px;margin-bottom:6px">⭐</div>
+                    <div style="font-size:12px;font-weight:600;color:var(--neon-yellow);margin-bottom:8px">Points / ₹</div>
+                    <div class="form-group" style="margin:0"><label style="font-size:11px">Points per ₹10</label><input id="s-tier-points" type="number" value="${lo.pointsPerRupee || 0.1}" class="form-input" style="text-align:center" step="0.1"/></div>
+                </div>
             </div></div>
         <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px"><button class="btn-outline" id="btn-cancel-settings">Cancel</button><button class="btn-primary" id="btn-save-settings">💾 Save</button></div>
     </div>`;
@@ -685,7 +1013,8 @@ function modalSessionStart(device) {
                     <span style="font-size:24px">${device.icon || "🎮"}</span><div><div style="font-weight:700;color:#fff">${device.name}</div><div style="font-size:11px;color:var(--text-muted)">${fmt(price)}/hr · ${fmt(price30)}/30min</div></div>
                 </div>
                 <div class="form-group"><label>Customer Name</label><input id="m-customer" type="text" placeholder="Enter name" class="form-input"/></div>
-                <div class="form-group"><label>Link Customer (optional)</label><select id="m-customerId" class="form-select"><option value="">Walk-in</option>${custOpts}</select></div>
+                <div class="form-group"><label>Phone (optional)</label><input id="m-cust-phone" type="tel" placeholder="Phone number" class="form-input"/></div>
+                <div class="form-group"><label>Link Existing Customer</label><select id="m-customerId" class="form-select"><option value="">— New Customer (will auto save) —</option>${custOpts}</select></div>
                 <div class="form-group"><label>Players</label><div style="display:flex;gap:8px"><button data-players="1" class="modal-player btn-primary" style="flex:1">1 Player</button><button data-players="2" class="modal-player btn-outline" style="flex:1">2 Players (+₹50)</button></div></div>
                 <div class="form-group"><label>Session Type</label><div style="display:flex;gap:8px"><button class="session-type-btn btn-primary" data-type="fixed" style="flex:1">⏱️ Fixed Duration</button><button class="session-type-btn btn-outline" data-type="open" style="flex:1">🔓 Open / Pay at End</button></div></div>
                 <div class="form-group" id="m-duration-group"><label>Duration (min)</label><input id="m-duration" type="number" value="60" min="1" class="form-input"/></div>
@@ -734,7 +1063,16 @@ function modalSessionStart(device) {
     ov.querySelector("#m-confirm").addEventListener("click", async () => {
         const name = ov.querySelector("#m-customer").value.trim();
         if (!name) { ov.querySelector("#m-customer").style.borderColor = "var(--neon-red)"; return; }
-        const custId = ov.querySelector("#m-customerId").value || null;
+        let custId = ov.querySelector("#m-customerId").value || null;
+        const phone = ov.querySelector("#m-cust-phone").value.trim();
+        if (!custId && name) {
+            const exists = cachedCustomers.find(c => c.name.toLowerCase() === name.toLowerCase());
+            if (exists) { custId = exists.id; }
+            else {
+                const newCust = await window.api.customers.add({ name, phone: phone || "", email: "" });
+                if (newCust && newCust.customer && newCust.customer.id) { custId = newCust.customer.id; await loadCustomers(); }
+            }
+        }
         const durVal = ov.querySelector("#m-duration").value;
         await window.api.sessions.start({ deviceId: device.id, customerName: name, durationMinutes: parseInt(durVal) || 60, players: selPlayers, customerId: custId, openEnded: isOpenEnded });
         for (const prod of selectedProducts) {
@@ -904,9 +1242,54 @@ function bindSessionsEvents() {
                 await loadSessions(); await loadDashboard(); render();
             });
         } else {
-            const res = await window.api.sessions.end({ deviceId: devId });
-            toast(res.amount ? `Session ended — ${fmt(res.amount)}` : "Session ended");
-            await loadSessions(); await loadDashboard(); render();
+            const preview = await window.api.sessions.preview({ deviceId: devId });
+            const elapsedMs = Date.now() - ses.startTime;
+            const elapsedMin = Math.max(1, Math.ceil(elapsedMs / 60000));
+            const bookedMin = ses.durationMinutes || 60;
+            const endedEarly = elapsedMin < bookedMin;
+            if (endedEarly) {
+                const ratePerHour = cachedSettings?.pricing?.[devId] || 200;
+                const rate30 = cachedSettings?.pricing?.[devId + "_30min"] || 0;
+                const fullCharge = ses.amount || 0;
+                const actualBase = elapsedMin <= 30 && rate30 ? rate30 : Math.ceil((elapsedMin / 60) * ratePerHour);
+                const extraCharge = (ses.players === 2) ? 50 : 0;
+                const actualCharge = actualBase + extraCharge;
+                const eHrs = Math.floor(elapsedMin / 60), eMins = elapsedMin % 60;
+                const timePlayed = eHrs > 0 ? `${eHrs}h ${eMins}m` : `${eMins}m`;
+                const ov = showModal(`<div class="modal-box" style="max-width:440px;text-align:center">
+                    <div style="font-size:48px;margin-bottom:8px">⏱️</div>
+                    <h2 style="font-size:20px;font-weight:800;color:#fff;margin:0 0 4px">End Session Early?</h2>
+                    <p style="font-size:13px;color:var(--text-muted);margin:0 0 20px">Session ended before booked duration</p>
+                    <div style="background:var(--bg-deep);border-radius:12px;padding:16px;border:1px solid var(--card-border);text-align:left;margin-bottom:16px">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:10px"><span style="color:var(--text-muted);font-size:13px">Customer</span><span style="color:#fff;font-weight:700;font-size:13px">${ses.customerName}</span></div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:10px"><span style="color:var(--text-muted);font-size:13px">Device</span><span style="color:#fff;font-weight:700;font-size:13px">${ses.deviceName}</span></div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:10px"><span style="color:var(--text-muted);font-size:13px">Booked</span><span style="color:#fff;font-size:13px">${bookedMin} min</span></div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:10px"><span style="color:var(--text-muted);font-size:13px">Played</span><span style="color:var(--neon-yellow);font-weight:700;font-size:13px">${timePlayed} (${elapsedMin} min)</span></div>
+                    </div>
+                    <div style="display:flex;gap:10px;margin-bottom:10px">
+                        <button id="charge-full" style="flex:1;padding:14px 8px;font-size:13px;font-weight:700;cursor:pointer;border-radius:10px;border:2px solid var(--primary);background:var(--primary);color:#fff">💰 Charge Full<br/><span style="font-size:18px;font-weight:800">${fmt(fullCharge)}</span></button>
+                        <button id="charge-actual" style="flex:1;padding:14px 8px;font-size:13px;font-weight:700;cursor:pointer;border-radius:10px;border:2px solid var(--neon-green);background:transparent;color:var(--neon-green)">⏱️ Charge Actual<br/><span style="font-size:18px;font-weight:800">${fmt(actualCharge)}</span></button>
+                    </div>
+                    <button class="modal-close btn-outline" style="width:100%;padding:10px;font-size:13px;font-weight:600;cursor:pointer;border-radius:10px;border:1px solid var(--card-border);background:var(--surface);color:#fff">Cancel</button>
+                </div>`);
+                ov.querySelector(".modal-close").addEventListener("click", closeModal);
+                ov.querySelector("#charge-full").addEventListener("click", async () => {
+                    closeModal();
+                    await window.api.sessions.end({ deviceId: devId, chargeMode: "full" });
+                    toast(`Session ended — ${fmt(fullCharge)} collected (full)`);
+                    await loadSessions(); await loadDashboard(); render();
+                });
+                ov.querySelector("#charge-actual").addEventListener("click", async () => {
+                    closeModal();
+                    await window.api.sessions.end({ deviceId: devId, chargeMode: "actual" });
+                    toast(`Session ended — ${fmt(actualCharge)} collected (actual ${elapsedMin}m)`);
+                    await loadSessions(); await loadDashboard(); render();
+                });
+            } else {
+                const res = await window.api.sessions.end({ deviceId: devId });
+                toast(res.amount ? `Session ended — ${fmt(res.amount)}` : "Session ended");
+                await loadSessions(); await loadDashboard(); render();
+            }
         }
     }));
     startCountdown();
@@ -915,6 +1298,38 @@ function bindSessionsEvents() {
 function bindCustomersEvents() {
     document.getElementById("btn-add-customer")?.addEventListener("click", modalAddCustomer);
     document.querySelectorAll(".btn-del-customer").forEach(b => b.addEventListener("click", async () => { if (!confirm("Remove this customer?")) return; await window.api.customers.delete({ customerId: b.dataset.customer }); toast("Customer removed"); await loadCustomers(); render(); }));
+    document.querySelectorAll(".btn-edit-customer").forEach(b => b.addEventListener("click", () => {
+        const cust = cachedCustomers.find(c => c.id === b.dataset.customer);
+        if (!cust) return;
+        const ov = showModal(`<div class="modal-box" style="max-width:440px"><div class="modal-header"><h2>Edit Customer</h2><button class="modal-close">&times;</button></div>
+            <div class="form-group"><label>Name</label><input id="m-edit-name" type="text" value="${cust.name}" class="form-input"/></div>
+            <div class="form-group"><label>Phone</label><input id="m-edit-phone" type="tel" value="${cust.phone || ""}" class="form-input"/></div>
+            <div class="form-group"><label>Email</label><input id="m-edit-email" type="email" value="${cust.email || ""}" class="form-input"/></div>
+            <div class="form-group"><label>Tier</label><select id="m-edit-tier" class="form-select"><option value="Bronze" ${cust.tier === "Bronze" ? "selected" : ""}>🥉 Bronze</option><option value="Silver" ${cust.tier === "Silver" ? "selected" : ""}>🥈 Silver</option><option value="Gold" ${cust.tier === "Gold" ? "selected" : ""}>🥇 Gold</option><option value="Platinum" ${cust.tier === "Platinum" ? "selected" : ""}>💎 Platinum</option></select></div>
+            <div style="background:var(--bg-deep);border-radius:10px;padding:12px;border:1px solid var(--card-border);margin-bottom:14px">
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;color:var(--text-muted)">Total Spent</span><span style="font-size:12px;color:var(--neon-green);font-weight:700">${fmt(cust.totalSpent || 0)}</span></div>
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;color:var(--text-muted)">Points</span><span style="font-size:12px;color:var(--accent);font-weight:700">${cust.points || 0}</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="font-size:12px;color:var(--text-muted)">Visits</span><span style="font-size:12px;color:#fff;font-weight:700">${cust.visits || 0}</span></div>
+            </div>
+            <button id="m-edit-confirm" class="btn-primary btn-full" style="padding:12px">💾 Save Changes</button></div>`);
+        ov.querySelector(".modal-close").addEventListener("click", closeModal);
+        ov.querySelector("#m-edit-confirm").addEventListener("click", async () => {
+            const name = ov.querySelector("#m-edit-name").value.trim();
+            if (!name) { ov.querySelector("#m-edit-name").style.borderColor = "var(--neon-red)"; return; }
+            await window.api.customers.update({ customerId: cust.id, data: { name, phone: ov.querySelector("#m-edit-phone").value, email: ov.querySelector("#m-edit-email").value, tier: ov.querySelector("#m-edit-tier").value } });
+            closeModal(); toast("Customer updated!"); await loadCustomers(); render();
+        });
+    }));
+    const searchInput = document.getElementById("cust-search");
+    if (searchInput) {
+        searchInput.addEventListener("input", (e) => {
+            const q = e.target.value.toLowerCase().trim();
+            const filtered = q ? cachedCustomers.filter(c => c.name?.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q) || c.tier?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q)) : cachedCustomers;
+            const grid = document.getElementById("customer-grid");
+            if (grid) grid.innerHTML = renderCustomerCards(filtered);
+            bindCustomersEvents();
+        });
+    }
 }
 
 function bindBookingsEvents() {
@@ -934,12 +1349,33 @@ function bindProductsEvents() {
 }
 
 function bindStockEvents() {
-    document.querySelectorAll(".btn-restock").forEach(b => b.addEventListener("click", async () => {
-        const newStock = prompt(`Restock "${b.dataset.name}"\nCurrent stock: ${b.dataset.stock}\nEnter new stock quantity:`);
-        if (newStock === null) return;
-        const qty = parseInt(newStock); if (isNaN(qty) || qty < 0) { toast("Invalid quantity", "error"); return; }
-        await window.api.refreshment.updateItem({ itemId: b.dataset.item, data: { stock: qty } });
-        toast("Stock updated!"); await loadRefreshment(); render();
+    document.querySelectorAll(".btn-restock").forEach(b => b.addEventListener("click", () => {
+        const itemId = b.dataset.item;
+        const name = b.dataset.name;
+        const currentStock = b.dataset.stock;
+        const ov = showModal(`<div class="modal-box" style="max-width:400px">
+            <div class="modal-header"><h2>Restock — ${name}</h2><button class="modal-close">&times;</button></div>
+            <div style="background:var(--bg-deep);border-radius:10px;padding:12px;border:1px solid var(--card-border);margin-bottom:16px;text-align:center">
+                <div style="font-size:11px;color:var(--text-muted)">Current Stock</div>
+                <div style="font-size:28px;font-weight:800;color:#fff;margin-top:4px">${currentStock}</div>
+            </div>
+            <div class="form-group"><label>Add Quantity</label><input id="restock-qty" type="number" min="1" value="10" class="form-input" placeholder="Enter quantity to add"/></div>
+            <div style="background:var(--bg-deep);border-radius:10px;padding:10px;border:1px solid var(--card-border);margin-bottom:16px;text-align:center">
+                <span style="font-size:11px;color:var(--text-muted)">New Stock will be </span><span id="restock-preview" style="font-size:13px;font-weight:700;color:var(--neon-green)">${parseInt(currentStock) + 10}</span>
+            </div>
+            <button id="restock-confirm" class="btn-primary btn-full" style="padding:12px">✓ Update Stock</button>
+        </div>`);
+        const qtyInput = ov.querySelector("#restock-qty");
+        const preview = ov.querySelector("#restock-preview");
+        qtyInput.addEventListener("input", () => { const q = parseInt(qtyInput.value) || 0; preview.textContent = parseInt(currentStock) + q; });
+        ov.querySelector(".modal-close").addEventListener("click", closeModal);
+        ov.querySelector("#restock-confirm").addEventListener("click", async () => {
+            const addQty = parseInt(qtyInput.value);
+            if (isNaN(addQty) || addQty < 1) { qtyInput.style.borderColor = "var(--neon-red)"; return; }
+            const newStock = parseInt(currentStock) + addQty;
+            await window.api.refreshment.updateItem({ itemId, data: { stock: newStock } });
+            closeModal(); toast(`Stock updated to ${newStock}!`); await loadRefreshment(); render();
+        });
     }));
 }
 
@@ -971,7 +1407,7 @@ function bindSettingsEvents() {
     document.getElementById("btn-save-settings")?.addEventListener("click", async () => {
         const openDays = []; document.querySelectorAll(".day-btn").forEach(b => { if (b.style.backgroundColor === "rgb(99, 102, 241)") openDays.push(b.dataset.day); });
         const pricing = {}; document.querySelectorAll(".price-input").forEach(el => { pricing[el.dataset.priceKey] = parseInt(el.value) || 0; });
-        const settings = { general: { cafeName: v("s-cafeName"), phone: v("s-phone"), email: v("s-email"), address: v("s-address") }, pricing, hours: { open: v("s-open") || "10:00", close: v("s-close") || "23:00", openDays }, session: { warningMinutes: parseInt(document.getElementById("s-warning")?.value) || 5, graceMinutes: parseInt(document.getElementById("s-grace")?.value) || 10, autoEnd: document.getElementById("toggleAutoEnd")?.classList.contains("on") ?? true, soundNotifications: document.getElementById("toggleSound")?.classList.contains("on") ?? false } };
+        const settings = { general: { cafeName: v("s-cafeName"), phone: v("s-phone"), email: v("s-email"), address: v("s-address") }, pricing, hours: { open: v("s-open") || "10:00", close: v("s-close") || "23:00", openDays }, session: { warningMinutes: parseInt(document.getElementById("s-warning")?.value) || 5, graceMinutes: parseInt(document.getElementById("s-grace")?.value) || 10, autoEnd: document.getElementById("toggleAutoEnd")?.classList.contains("on") ?? true, soundNotifications: document.getElementById("toggleSound")?.classList.contains("on") ?? false }, loyalty: { silver: parseInt(document.getElementById("s-tier-silver")?.value) || 1000, gold: parseInt(document.getElementById("s-tier-gold")?.value) || 3000, platinum: parseInt(document.getElementById("s-tier-platinum")?.value) || 6000, pointsPerRupee: parseFloat(document.getElementById("s-tier-points")?.value) || 0.1, redeemRate: lo.redeemRate || 100 } };
         await window.api.settings.save(settings); cachedSettings = settings; toast("Settings saved!");
     });
     ["toggleAutoEnd", "toggleSound"].forEach(id => { document.getElementById(id)?.addEventListener("click", function () { this.classList.toggle("on"); this.classList.toggle("off"); }); });

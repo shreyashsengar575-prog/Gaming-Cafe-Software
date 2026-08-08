@@ -50,8 +50,7 @@ ipcMain.handle("settings:get", () => store.load("settings"));
 ipcMain.handle("settings:save", (_, s) => { store.save("settings", s); addLog("Settings updated", "System settings saved", "Admin"); return { success: true }; });
 
 // ─── DEVICES ───
-ipc
-Main.handle("devices:get", () => store.load("devices"));
+ipcMain.handle("devices:get", () => store.load("devices"));
 ipcMain.handle("devices:add", (_, { name, icon, type }) => {
     const d = store.load("devices");
     const dev = { id: "dev-" + Date.now(), name, icon: icon || "🎮", type: type || "console", status: "available", customer: null, sessionEnd: null };
@@ -118,7 +117,7 @@ ipcMain.handle("sessions:start", (_, { deviceId, customerName, durationMinutes, 
     addLog("Session started", `${device.name} → ${customerName} (${openEnded ? "Open" : durationMinutes + "m"}, ${fmt(amount)})`, "Admin");
     return { success: true, session };
 });
-ipcMain.handle("sessions:end", (_, { deviceId }) => {
+ipcMain.handle("sessions:end", (_, { deviceId, chargeMode }) => {
     const devices = store.load("devices");
     const sessions = store.load("sessions");
     const settings = store.load("settings");
@@ -137,6 +136,18 @@ ipcMain.handle("sessions:end", (_, { deviceId }) => {
             const baseAmount = elapsedMin <= 30 && rate30 ? rate30 : Math.ceil((elapsedMin / 60) * ratePerHour);
             const extraCharge = (session.players === 2) ? 50 : 0;
             session.amount = baseAmount + extraCharge;
+        } else if (chargeMode === "actual") {
+            const elapsedMs = Date.now() - session.startTime;
+            const elapsedMin = Math.max(1, Math.ceil(elapsedMs / 60000));
+            session.actualMinutes = elapsedMin;
+            const ratePerHour = settings.pricing[deviceId] || 200;
+            const rate30 = settings.pricing[deviceId + "_30min"] || 0;
+            const baseAmount = elapsedMin <= 30 && rate30 ? rate30 : Math.ceil((elapsedMin / 60) * ratePerHour);
+            const extraCharge = (session.players === 2) ? 50 : 0;
+            session.amount = baseAmount + extraCharge;
+            session.chargeMode = "actual";
+        } else {
+            session.chargeMode = "full";
         }
     }
     const custName = device.customer || "Unknown";
@@ -148,7 +159,19 @@ ipcMain.handle("sessions:end", (_, { deviceId }) => {
     if (custId) {
         const customers = store.load("customers");
         const cust = customers.find(c => c.id === custId);
-        if (cust) { cust.totalSpent = (cust.totalSpent || 0) + sessionAmount; cust.points = (cust.points || 0) + Math.floor(sessionAmount / 10); if (cust.totalSpent >= 5000) cust.tier = "Platinum"; else if (cust.totalSpent >= 2000) cust.tier = "Gold"; else if (cust.totalSpent >= 500) cust.tier = "Silver"; store.save("customers", customers); }
+        if (cust) {
+            cust.totalSpent = (cust.totalSpent || 0) + sessionAmount;
+            cust.points = (cust.points || 0) + Math.floor(sessionAmount / 10);
+            const tierSettings = settings.loyalty || {};
+            const silverReq = tierSettings.silver || 1000;
+            const goldReq = tierSettings.gold || 3000;
+            const platinumReq = tierSettings.platinum || 6000;
+            if (cust.totalSpent >= platinumReq) cust.tier = "Platinum";
+            else if (cust.totalSpent >= goldReq) cust.tier = "Gold";
+            else if (cust.totalSpent >= silverReq) cust.tier = "Silver";
+            else cust.tier = "Bronze";
+            store.save("customers", customers);
+        }
     }
     addLog("Session ended", `${device.name} → ${custName} (${session?.durationMinutes || "?"}m, ${fmt(sessionAmount)})`, "Admin");
     return { success: true, amount: sessionAmount };
@@ -241,11 +264,20 @@ ipcMain.handle("refreshment:sell", (_, { itemId, qty, customerId }) => {
     if (item.stock > 0) item.stock -= quantity;
     if (customerId) {
         const customers = store.load("customers");
+        const settings = store.load("settings");
         const cust = customers.find(c => c.id === customerId);
         if (cust) {
             cust.visits = (cust.visits || 0) + 1;
             cust.totalSpent = (cust.totalSpent || 0) + sale.price;
             cust.points = (cust.points || 0) + Math.floor(sale.price / 10);
+            const tierSettings = settings.loyalty || {};
+            const silverReq = tierSettings.silver || 1000;
+            const goldReq = tierSettings.gold || 3000;
+            const platinumReq = tierSettings.platinum || 6000;
+            if (cust.totalSpent >= platinumReq) cust.tier = "Platinum";
+            else if (cust.totalSpent >= goldReq) cust.tier = "Gold";
+            else if (cust.totalSpent >= silverReq) cust.tier = "Silver";
+            else cust.tier = "Bronze";
             store.save("customers", customers);
         }
     }

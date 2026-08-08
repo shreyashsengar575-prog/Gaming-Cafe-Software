@@ -7,5 +7,5 @@ function render(html) {
 module.exports = {
 
     render
-
+    
 };

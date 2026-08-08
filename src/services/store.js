@@ -40,7 +40,7 @@ function getDefaults(name) {
             pricing: { ps5: 200, ps4: 150, vr: 300 },
             hours: { open: "10:00", close: "23:00", openDays: ["Mon","Tue","Wed","Thu","Fri","Sat"] },
             session: { warningMinutes: 5, graceMinutes: 10, autoEnd: true, soundNotifications: false },
-            loyalty: { pointsPerRupee: 0.1, redeemRate: 100 }
+            loyalty: { pointsPerRupee: 0.1, redeemRate: 100, silver: 1000, gold: 3000, platinum: 6000 }
         },
         devices: [
             { id: "ps5", name: "PS5", icon: "🎮", type: "console", status: "available", customer: null, sessionEnd: null },
