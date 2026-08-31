@@ -2,94 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ===========================
-   Global Styles
-=========================== */
-
-body{
-
-    margin:0;
-
-    padding:0;
-
-    font-family:Arial, Helvetica, sans-serif;
-
-    background:#0f172a;
-
-    color:white;
-
-    overflow:hidden;
-
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    background: #050510;
+    color: white;
+    overflow: hidden;
 }
 
-/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,240,255,0.2); border-radius: 20px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,240,255,0.4); }
 
-::-webkit-scrollbar{
-
-    width:8px;
-
-}
-
-::-webkit-scrollbar-track{
-
-    background:#0f172a;
-
-}
-
-::-webkit-scrollbar-thumb{
-
-    background:#334155;
-
-    border-radius:20px;
-
-}
-
-::-webkit-scrollbar-thumb:hover{
-
-    background:#475569;
-
-}
-
-/* Button Animation */
-
-button{
-
-    transition:.25s;
-
-}
-
-button:hover{
-
-    transform:translateY(-2px);
-
-}
-
-/* Card Animation */
-
-.card{
-
-    transition:.3s;
-
-}
-
-.card:hover{
-
-    transform:translateY(-5px);
-
-}
-
-/* Alarm Pulse */
-
-@keyframes alarmPulse{
-
-    0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}
-
-    50%{box-shadow:0 0 30px 10px rgba(239,68,68,.3)}
-
-}
-
-.alarm-pulse{
-
-    animation:alarmPulse 1s ease-in-out infinite;
-
-}
+button { transition: .25s; }
+button:hover { transform: translateY(-2px); }
+.card { transition: .3s; }
+.card:hover { transform: translateY(-5px); }

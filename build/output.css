@@ -154,7 +154,7 @@ html,
   -o-tab-size: 4;
      tab-size: 4;
   /* 3 */
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
   /* 4 */
   font-feature-settings: normal;
   /* 5 */
@@ -734,6 +734,10 @@ video {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+.resize {
+  resize: both;
+}
+
 .grid-cols-2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -857,6 +861,11 @@ video {
   border-color: rgb(30 41 59 / var(--tw-border-opacity, 1));
 }
 
+.bg-\[\#050510\] {
+  --tw-bg-opacity: 1;
+  background-color: rgb(5 5 16 / var(--tw-bg-opacity, 1));
+}
+
 .bg-\[\#0A1020\] {
   --tw-bg-opacity: 1;
   background-color: rgb(10 16 32 / var(--tw-bg-opacity, 1));
@@ -865,11 +874,6 @@ video {
 .bg-\[\#0B1120\] {
   --tw-bg-opacity: 1;
   background-color: rgb(11 17 32 / var(--tw-bg-opacity, 1));
-}
-
-.bg-\[\#0b0f19\] {
-  --tw-bg-opacity: 1;
-  background-color: rgb(11 15 25 / var(--tw-bg-opacity, 1));
 }
 
 .bg-\[\#101827\] {
@@ -1239,72 +1243,46 @@ video {
   transition-duration: 300ms;
 }
 
-/* ===========================
-   Global Styles
-=========================== */
-
-body{
-  margin:0;
-  padding:0;
-  font-family:Arial, Helvetica, sans-serif;
-  background:#0f172a;
-  color:white;
-  overflow:hidden;
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  background: #050510;
+  color: white;
+  overflow: hidden;
 }
 
-/* Scrollbar */
-
-::-webkit-scrollbar{
-  width:8px;
+::-webkit-scrollbar {
+  width: 6px;
 }
 
-::-webkit-scrollbar-track{
-  background:#0f172a;
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-::-webkit-scrollbar-thumb{
-  background:#334155;
-  border-radius:20px;
+::-webkit-scrollbar-thumb {
+  background: rgba(0,240,255,0.2);
+  border-radius: 20px;
 }
 
-::-webkit-scrollbar-thumb:hover{
-  background:#475569;
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,240,255,0.4);
 }
 
-/* Button Animation */
-
-button{
-  transition:.25s;
+button {
+  transition: .25s;
 }
 
-button:hover{
-  transform:translateY(-2px);
+button:hover {
+  transform: translateY(-2px);
 }
 
-/* Card Animation */
-
-.card{
-  transition:.3s;
+.card {
+  transition: .3s;
 }
 
-.card:hover{
-  transform:translateY(-5px);
-}
-
-/* Alarm Pulse */
-
-@keyframes alarmPulse{
-  0%,100%{
-    box-shadow:0 0 0 0 rgba(239,68,68,.5)
-  }
-
-  50%{
-    box-shadow:0 0 30px 10px rgba(239,68,68,.3)
-  }
-}
-
-.alarm-pulse{
-  animation:alarmPulse 1s ease-in-out infinite;
+.card:hover {
+  transform: translateY(-5px);
 }
 
 .hover\:scale-\[1\.02\]:hover {

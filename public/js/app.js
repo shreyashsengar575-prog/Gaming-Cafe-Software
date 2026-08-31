@@ -23,6 +23,46 @@ const alarmTriggered = new Set();
 let alarmAudioCtx = null;
 let alarmIntervalId = null;
 
+// ─── PARTICLES ───
+(function initParticles() {
+    const canvas = document.getElementById("particle-canvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let w, h, particles = [];
+    function resize() { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; }
+    resize(); window.addEventListener("resize", resize);
+    class Particle {
+        constructor() { this.reset(); }
+        reset() {
+            this.x = Math.random() * w;
+            this.y = Math.random() * h;
+            this.vx = (Math.random() - 0.5) * 0.3;
+            this.vy = (Math.random() - 0.5) * 0.3;
+            this.size = Math.random() * 2 + 0.5;
+            this.alpha = Math.random() * 0.4 + 0.1;
+            const colors = ["0,240,255", "255,0,170", "180,0,255"];
+            this.color = colors[Math.floor(Math.random() * colors.length)];
+        }
+        update() {
+            this.x += this.vx; this.y += this.vy;
+            if (this.x < 0 || this.x > w || this.y < 0 || this.y > h) this.reset();
+        }
+        draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(${this.color},${this.alpha})`;
+            ctx.fill();
+        }
+    }
+    for (let i = 0; i < 60; i++) particles.push(new Particle());
+    function animate() {
+        ctx.clearRect(0, 0, w, h);
+        particles.forEach(p => { p.update(); p.draw(); });
+        requestAnimationFrame(animate);
+    }
+    animate();
+})();
+
 function fmt(n) { return "\u20B9" + Number(n || 0).toLocaleString("en-IN"); }
 function fmtTime(endTime) {
     const diff = endTime - Date.now();

@@ -4,28 +4,56 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Game Zone - Gaming Cafe Management</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        surface: { DEFAULT: '#111827', light: '#1F2937' },
-                        sidebar: '#0D1220',
+                        primary: "#00f0ff",
+                        "primary-hover": "#33f5ff",
+                        "primary-dim": "#0099aa",
+                        accent: "#ff00aa",
+                        "neon-pink": "#ff00aa",
+                        "neon-green": "#00ff88",
+                        "neon-yellow": "#ffee00",
+                        "neon-red": "#ff3344",
+                        "neon-purple": "#b400ff",
+                        deep: "#050510",
+                        "deep-main": "#0a0a1a",
+                        surface: { DEFAULT: 'rgba(15,15,30,0.6)', solid: '#0f0f1e', light: 'rgba(25,25,50,0.7)' },
+                        sidebar: 'rgba(8,8,15,0.85)',
+                        card: 'rgba(15,15,30,0.6)',
+                        "card-border": 'rgba(0,240,255,0.15)',
+                    },
+                    fontFamily: {
+                        display: ["'Orbitron'", "sans-serif"],
+                        sans: ["'Inter'", "'Segoe UI'", "system-ui", "sans-serif"],
+                    },
+                    boxShadow: {
+                        "neon-cyan": "0 0 15px rgba(0,240,255,0.4), 0 0 45px rgba(0,240,255,0.15)",
+                        "neon-magenta": "0 0 15px rgba(255,0,170,0.4), 0 0 45px rgba(255,0,170,0.15)",
+                        "neon-green": "0 0 15px rgba(0,255,136,0.4), 0 0 45px rgba(0,255,136,0.15)",
+                        "glass": "0 8px 32px rgba(0,0,0,0.4)",
                     },
                     keyframes: {
-                        'pulse-slow': { '0%, 100%': { opacity: 1 }, '50%': { opacity: .5 } },
-                        'fadeIn': { 'from': { opacity: '0', transform: 'translateY(10px)' }, 'to': { opacity: '1', transform: 'translateY(0)' } },
-                        'slideUp': { 'from': { opacity: '0', transform: 'translateY(30px)' }, 'to': { opacity: '1', transform: 'translateY(0)' } },
-                        'scaleIn': { 'from': { opacity: '0', transform: 'scale(.9)' }, 'to': { opacity: '1', transform: 'scale(1)' } },
-                        'slideIn': { 'from': { transform: 'translateX(-100%)' }, 'to': { transform: 'translateX(0)' } }
+                        'glow-pulse': { '0%, 100%': { opacity: '1' }, '50%': { opacity: '0.6' } },
+                        'float': { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-8px)' } },
+                        'gradient-shift': { '0%': { backgroundPosition: '0% 50%' }, '50%': { backgroundPosition: '100% 50%' }, '100%': { backgroundPosition: '0% 50%' } },
+                        'slideUp': { 'from': { opacity: '0', transform: 'translateY(20px)' }, 'to': { opacity: '1', transform: 'translateY(0)' } },
+                        'fadeIn': { 'from': { opacity: '0' }, 'to': { opacity: '1' } },
+                        'scaleIn': { 'from': { opacity: '0', transform: 'scale(0.95)' }, 'to': { opacity: '1', transform: 'scale(1)' } },
                     },
                     animation: {
-                        'pulse-slow': 'pulse-slow 2s ease-in-out infinite',
-                        'fade-in': 'fadeIn 0.6s ease-out',
-                        'slide-up': 'slideUp 0.4s ease-out',
+                        'glow-pulse': 'glow-pulse 2s ease-in-out infinite',
+                        'float': 'float 6s ease-in-out infinite',
+                        'gradient-shift': 'gradient-shift 4s ease infinite',
+                        'slide-up': 'slideUp 0.5s ease-out',
+                        'fade-in': 'fadeIn 0.4s ease-out',
                         'scale-in': 'scaleIn 0.3s ease-out',
-                        'slide-in': 'slideIn 0.5s ease-out'
                     }
                 }
             }
@@ -34,7 +62,13 @@
     <link rel="stylesheet" href="./css/theme.css">
     <link rel="stylesheet" href="./css/style.css">
 </head>
-<body class="bg-[#0b0f19]">
+<body class="bg-[#050510]">
+    <div class="animated-bg">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+    <canvas id="particle-canvas"></canvas>
     <div id="app"></div>
     <script src="./js/store.js"></script>
     <script src="./js/api.js"></script>
