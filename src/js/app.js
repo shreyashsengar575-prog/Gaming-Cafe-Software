@@ -623,9 +623,11 @@ function loadReportContent() {
     const todayRev = todaySess.reduce((s, x) => s + (x.amount || 0), 0);
     const yesterdayRev = yesterdaySess.reduce((s, x) => s + (x.amount || 0), 0);
     const totalExp = cachedExpenses.reduce((s, e) => s + (e.amount || 0), 0);
+    const todayExp = cachedExpenses.filter(e => e.date === today).reduce((s, e) => s + (e.amount || 0), 0);
+    const totalRefreshRev = (cachedRefreshment.sales || []).reduce((s, x) => s + (x.price * (x.qty || 1)), 0);
     const refreshRev = cachedRefreshment.todayRevenue || 0;
-    const profit = totalRev - totalExp;
-    const netToday = todayRev + refreshRev - cachedExpenses.filter(e => e.date === today).reduce((s, e) => s + (e.amount || 0), 0);
+    const profit = (totalRev + totalRefreshRev) - totalExp;
+    const netToday = (todayRev + refreshRev) - todayExp;
 
     if (reportTab === "overview") {
         const avgSession = completed.length ? Math.round(completed.reduce((s, x) => s + (x.durationMinutes || 0), 0) / completed.length) : 0;
@@ -640,9 +642,9 @@ function loadReportContent() {
 
         el.innerHTML = `
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px">
-            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(16,185,129,.15)">💰</div><div class="stat-info"><div class="stat-label">TOTAL REVENUE</div><div class="stat-value">${fmt(totalRev)}</div></div></div></div>
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(16,185,129,.15)">💰</div><div class="stat-info"><div class="stat-label">TOTAL REVENUE</div><div class="stat-value">${fmt(totalRev + totalRefreshRev)}</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px">Sessions + Refreshments</div></div></div></div>
             <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(239,68,68,.15)">💸</div><div class="stat-info"><div class="stat-label">TOTAL EXPENSES</div><div class="stat-value">${fmt(totalExp)}</div></div></div></div>
-            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(99,102,241,.15)">📈</div><div class="stat-info"><div class="stat-label">NET PROFIT</div><div class="stat-value" style="color:${profit >= 0 ? "var(--neon-green)" : "var(--neon-red)"}">${fmt(profit)}</div></div></div></div>
+            <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(99,102,241,.15)">📈</div><div class="stat-info"><div class="stat-label">NET PROFIT</div><div class="stat-value" style="color:${profit >= 0 ? "var(--neon-green)" : "var(--neon-red)"}">${fmt(profit)}</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px">Revenue - Expenses</div></div></div></div>
             <div class="dash-card"><div class="stat-card"><div class="stat-icon" style="background:rgba(245,158,11,.15)">📋</div><div class="stat-info"><div class="stat-label">TOTAL SESSIONS</div><div class="stat-value">${completed.length}</div></div></div></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
