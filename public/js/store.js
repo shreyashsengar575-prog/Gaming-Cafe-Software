@@ -46,7 +46,7 @@ const webStore = {
                 { id: "st2", name: "Priya", role: "Cashier", phone: "9123456780" }
             ],
             expenses: [],
-            users: [{ id: "u1", name: "Admin", email: "admin@gamingcafe.in", role: "Super Admin", password: "admin123" }],
+            users: [{ id: "u1", name: "Shreyash", email: "admin@gamingcafe.in", role: "Super Admin", password: "Shreyash123" }],
             logs: [],
             bookings: [],
             shifts: [],

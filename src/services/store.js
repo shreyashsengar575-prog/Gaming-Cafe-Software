@@ -65,7 +65,7 @@ function getDefaults(name) {
         staff: [],
         expenses: [],
         users: [
-            { id: "u1", name: "Admin", email: "admin@gamezone.in", role: "Super Admin", password: "admin123", status: "Active", createdAt: new Date().toISOString().split("T")[0] }
+            { id: "u1", name: "Shreyash", email: "admin@gamezone.in", role: "Super Admin", password: "Shreyash123", status: "Active", createdAt: new Date().toISOString().split("T")[0] }
         ],
         logs: [],
         bookings: [],

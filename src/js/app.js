@@ -201,7 +201,6 @@ function createSidebar() {
         <div class="sidebar-footer">
             <div class="cafe-status"><span style="font-size:12px;color:var(--text-secondary)">Cafe Status</span><span><span class="status-dot"></span><span style="font-size:12px;color:var(--neon-green);font-weight:600">Open</span></span></div>
             <div class="clock-area"><div class="clock-time" id="sidebar-clock"></div><div class="clock-date" id="sidebar-date"></div></div>
-            <button id="logout-btn" style="width:100%;margin-top:10px;padding:8px;background:rgba(255,51,68,0.1);border:1px solid rgba(255,51,68,0.2);border-radius:8px;color:var(--neon-red);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s">Logout (${currentUser?.name || "Admin"})</button>
         </div>
     </div>`;
 }
@@ -1469,7 +1468,6 @@ function showRedeemPointsOption(customerId, onApply) {
 
 // ─── KEYBOARD SHORTCUTS (Feature 17) ───
 document.addEventListener("keydown", (e) => {
-    if (!currentUser) return;
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
     if (e.ctrlKey || e.metaKey) {
         if (e.key === "n" || e.key === "N") { e.preventDefault(); document.getElementById("header-new-session")?.click(); }
@@ -1805,59 +1803,8 @@ function updateClock() {
     if (dt) dt.textContent = now.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
-// ─── LOGIN SCREEN ───
-function showLogin() {
-    app.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:var(--bg-deep);position:relative;z-index:10">
-        <div class="modal-box" style="max-width:400px;text-align:center">
-            <div style="font-size:48px;margin-bottom:8px">🎮</div>
-            <h1 style="font-family:var(--font-display);font-size:22px;color:#fff;margin:0 0 4px;letter-spacing:1px">GAME ZONE</h1>
-            <p style="color:var(--text-muted);font-size:12px;margin:0 0 24px">Gaming Cafe Management</p>
-            <div class="form-group" style="text-align:left">
-                <label>Username</label>
-                <input id="login-user" class="form-input" placeholder="Enter username" autocomplete="username">
-            </div>
-            <div class="form-group" style="text-align:left">
-                <label>Password</label>
-                <input id="login-pass" class="form-input" type="password" placeholder="Enter password" autocomplete="current-password">
-            </div>
-            <div id="login-error" style="color:var(--neon-red);font-size:12px;margin-bottom:12px;display:none"></div>
-            <button id="login-btn" class="btn-primary btn-full" style="padding:12px;font-size:14px">Login</button>
-            <p style="color:var(--text-muted);font-size:11px;margin-top:16px">Default: admin / admin123</p>
-        </div>
-    </div>`;
-    const btn = document.getElementById("login-btn");
-    const userInput = document.getElementById("login-user");
-    const passInput = document.getElementById("login-pass");
-    const errorDiv = document.getElementById("login-error");
-    userInput.focus();
-    async function doLogin() {
-        const username = userInput.value.trim();
-        const password = passInput.value;
-        if (!username || !password) { errorDiv.textContent = "Please enter username and password"; errorDiv.style.display = "block"; return; }
-        const result = await window.api.auth.login({ username, password });
-        if (result.success) {
-            currentUser = result.user;
-            sessionStorage.setItem("currentUser", JSON.stringify(result.user));
-            render();
-        } else {
-            errorDiv.textContent = result.error || "Invalid credentials";
-            errorDiv.style.display = "block";
-            passInput.value = "";
-            passInput.focus();
-        }
-    }
-    btn.addEventListener("click", doLogin);
-    passInput.addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
-    userInput.addEventListener("keydown", e => { if (e.key === "Enter") passInput.focus(); });
-}
-
 // ─── RENDER ───
 async function render() {
-    if (!currentUser) {
-        const saved = sessionStorage.getItem("currentUser");
-        if (saved) { currentUser = JSON.parse(saved); }
-        else { showLogin(); return; }
-    }
     if (clockInterval) { clearInterval(clockInterval); clockInterval = null; }
     if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
     document.getElementById("alarm-overlay")?.remove(); stopAlarm();
@@ -1919,7 +1866,6 @@ async function render() {
     document.querySelectorAll(".nav-item").forEach(b => b.addEventListener("click", () => { activePage = b.dataset.page; render(); }));
     document.getElementById("hamburger-btn")?.addEventListener("click", () => { const s = document.querySelector(".sidebar"); if (s) s.style.display = s.style.display === "none" ? "flex" : "none"; });
     document.getElementById("header-bell")?.addEventListener("click", () => { const expired = cachedDevices.filter(d => d.status === "expired"); if (expired.length > 0) { activePage = "devices"; render(); } else toast("No alerts"); });
-    document.getElementById("logout-btn")?.addEventListener("click", () => { currentUser = null; sessionStorage.removeItem("currentUser"); showLogin(); });
     if (page.bind) page.bind();
     updateClock(); clockInterval = setInterval(updateClock, 1000);
 }
