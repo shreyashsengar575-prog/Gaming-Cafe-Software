@@ -63,6 +63,39 @@ contextBridge.exposeInMainWorld("api", {
         revenue: (d) => ipcRenderer.invoke("reports:revenue", d)
     },
     backup: {
-        export: () => ipcRenderer.invoke("backup:export")
+        export: () => ipcRenderer.invoke("backup:export"),
+        import: (d) => ipcRenderer.invoke("backup:import", d)
+    },
+    auth: {
+        login: (d) => ipcRenderer.invoke("auth:login", d),
+        changePassword: (d) => ipcRenderer.invoke("auth:change-password", d)
+    },
+    payments: {
+        setMethod: (d) => ipcRenderer.invoke("sessions:set-payment", d)
+    },
+    shifts: {
+        get: () => ipcRenderer.invoke("shifts:get"),
+        open: (d) => ipcRenderer.invoke("shifts:open", d),
+        close: (d) => ipcRenderer.invoke("shifts:close", d)
+    },
+    discounts: {
+        get: () => ipcRenderer.invoke("discounts:get"),
+        add: (d) => ipcRenderer.invoke("discounts:add", d),
+        delete: (d) => ipcRenderer.invoke("discounts:delete", d),
+        validate: (d) => ipcRenderer.invoke("discounts:validate", d)
+    },
+    combos: {
+        get: () => ipcRenderer.invoke("combos:get"),
+        add: (d) => ipcRenderer.invoke("combos:add", d),
+        delete: (d) => ipcRenderer.invoke("combos:delete", d)
+    },
+    queue: {
+        get: () => ipcRenderer.invoke("queue:get"),
+        add: (d) => ipcRenderer.invoke("queue:add", d),
+        remove: (d) => ipcRenderer.invoke("queue:remove", d),
+        notify: (d) => ipcRenderer.invoke("queue:notify", d)
+    },
+    receipt: {
+        generate: (d) => ipcRenderer.invoke("receipt:generate", d)
     }
 });

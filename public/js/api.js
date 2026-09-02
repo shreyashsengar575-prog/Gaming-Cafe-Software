@@ -319,13 +319,142 @@ window.api = {
     backup: {
         export: () => {
             const data = {};
-            ["settings","devices","sessions","refreshment","customers","staff","expenses","users","logs","bookings"].forEach(k => { data[k] = webStore.load(k); });
+            ["settings","devices","sessions","refreshment","customers","staff","expenses","users","logs","bookings","shifts","discounts","combos","queue"].forEach(k => { data[k] = webStore.load(k); });
             data.exportDate = new Date().toISOString();
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a"); a.href = url; a.download = "gaming-cafe-backup.json"; a.click();
             URL.revokeObjectURL(url);
             return Promise.resolve({ success: true });
+        },
+        import: () => Promise.resolve({ success: false, error: "Import not available on web" })
+    },
+    auth: {
+        login: ({ username, password }) => {
+            const users = webStore.load("users");
+            const user = users.find(u => u.name.toLowerCase() === username.toLowerCase() && u.password === password);
+            if (!user) return Promise.resolve({ success: false, error: "Invalid credentials" });
+            return Promise.resolve({ success: true, user: { id: user.id, name: user.name, role: user.role, email: user.email } });
+        },
+        changePassword: ({ userId, oldPass, newPass }) => {
+            const users = webStore.load("users");
+            const user = users.find(u => u.id === userId);
+            if (!user) return Promise.resolve({ success: false, error: "User not found" });
+            if (user.password && user.password !== oldPass) return Promise.resolve({ success: false, error: "Old password incorrect" });
+            user.password = newPass;
+            webStore.save("users", users);
+            return Promise.resolve({ success: true });
+        }
+    },
+    payments: {
+        setMethod: ({ sessionId, paymentMethod }) => {
+            const sessions = webStore.load("sessions");
+            const session = sessions.find(s => s.id === sessionId);
+            if (session) { session.paymentMethod = paymentMethod; webStore.save("sessions", sessions); }
+            return Promise.resolve({ success: true });
+        }
+    },
+    shifts: {
+        get: () => Promise.resolve(webStore.load("shifts")),
+        open: ({ openingCash, openedBy }) => {
+            const shifts = webStore.load("shifts");
+            const today = tk();
+            if (shifts.find(s => s.date === today && s.status === "open")) return Promise.resolve({ success: false, error: "Shift already open" });
+            const shift = { id: "sh" + Date.now(), date: today, openingCash: parseFloat(openingCash) || 0, openedBy: openedBy || "Admin", openTime: new Date().toISOString(), status: "open" };
+            shifts.push(shift); webStore.save("shifts", shifts);
+            return Promise.resolve({ success: true, shift });
+        },
+        close: ({ closingCash, closedBy }) => {
+            const shifts = webStore.load("shifts");
+            const today = tk();
+            const shift = shifts.find(s => s.date === today && s.status === "open");
+            if (!shift) return Promise.resolve({ success: false, error: "No open shift" });
+            const sessions = webStore.load("sessions");
+            const refreshment = webStore.load("refreshment");
+            const todaySessions = sessions.filter(s => s.date === today && s.status === "completed");
+            const todaySales = (refreshment.sales || []).filter(s => s.date === today);
+            const sessionRevenue = todaySessions.reduce((sum, s) => sum + (s.amount || 0), 0);
+            const refreshmentRevenue = todaySales.reduce((sum, s) => sum + (s.price * (s.qty || 1)), 0);
+            const expectedCash = shift.openingCash + sessionRevenue + refreshmentRevenue;
+            const actualCash = parseFloat(closingCash) || 0;
+            shift.closingCash = actualCash; shift.closedBy = closedBy; shift.closeTime = new Date().toISOString();
+            shift.status = "closed"; shift.sessionRevenue = sessionRevenue; shift.refreshmentRevenue = refreshmentRevenue;
+            shift.expectedCash = expectedCash; shift.difference = actualCash - expectedCash;
+            webStore.save("shifts", shifts);
+            return Promise.resolve({ success: true, shift });
+        }
+    },
+    discounts: {
+        get: () => Promise.resolve(webStore.load("discounts")),
+        add: (d) => {
+            const list = webStore.load("discounts");
+            list.push({ id: "dc" + Date.now(), ...d, code: d.code.toUpperCase(), usedCount: 0, active: true });
+            webStore.save("discounts", list);
+            return Promise.resolve({ success: true });
+        },
+        delete: ({ discountId }) => {
+            const list = webStore.load("discounts");
+            webStore.save("discounts", list.filter(x => x.id !== discountId));
+            return Promise.resolve({ success: true });
+        },
+        validate: ({ code, amount }) => {
+            const list = webStore.load("discounts");
+            const disc = list.find(x => x.code.toUpperCase() === code.toUpperCase() && x.active);
+            if (!disc) return Promise.resolve({ valid: false, error: "Invalid code" });
+            if (disc.validTo && tk() > disc.validTo) return Promise.resolve({ valid: false, error: "Expired" });
+            const discountAmount = disc.type === "percent" ? Math.round(amount * disc.value / 100) : Math.min(disc.value, amount);
+            return Promise.resolve({ valid: true, discountAmount, finalAmount: amount - discountAmount });
+        }
+    },
+    combos: {
+        get: () => Promise.resolve(webStore.load("combos")),
+        add: (d) => {
+            const list = webStore.load("combos");
+            list.push({ id: "cb" + Date.now(), ...d, active: true });
+            webStore.save("combos", list);
+            return Promise.resolve({ success: true });
+        },
+        delete: ({ comboId }) => {
+            const list = webStore.load("combos");
+            webStore.save("combos", list.filter(x => x.id !== comboId));
+            return Promise.resolve({ success: true });
+        }
+    },
+    queue: {
+        get: () => Promise.resolve(webStore.load("queue")),
+        add: (d) => {
+            const list = webStore.load("queue");
+            list.push({ id: "q" + Date.now(), ...d, addedAt: new Date().toISOString(), status: "waiting" });
+            webStore.save("queue", list);
+            return Promise.resolve({ success: true });
+        },
+        remove: ({ queueId }) => {
+            const list = webStore.load("queue");
+            webStore.save("queue", list.filter(x => x.id !== queueId));
+            return Promise.resolve({ success: true });
+        },
+        notify: ({ queueId }) => {
+            const list = webStore.load("queue");
+            const entry = list.find(x => x.id === queueId);
+            if (entry) entry.status = "notified";
+            webStore.save("queue", list);
+            return Promise.resolve({ success: true });
+        }
+    },
+    receipt: {
+        generate: ({ sessionId }) => {
+            const sessions = webStore.load("sessions");
+            const settings = webStore.load("settings");
+            const session = sessions.find(s => s.id === sessionId);
+            if (!session) return Promise.resolve({ success: false });
+            return Promise.resolve({ success: true, receipt: {
+                cafeName: settings.general?.cafeName || "Gaming Cafe", address: settings.general?.address || "",
+                sessionId: session.id, customer: session.customerName, device: session.deviceName,
+                date: session.date, duration: session.durationMinutes, players: session.players,
+                baseAmount: session.amount, paymentMethod: session.paymentMethod || "Cash",
+                discount: session.discount || 0, finalAmount: session.finalAmount || session.amount,
+                items: session.items || []
+            }});
         }
     }
 };

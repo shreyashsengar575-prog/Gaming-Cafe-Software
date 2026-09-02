@@ -195,6 +195,178 @@ ipcMain.handle("sessions:preview", (_, { deviceId }) => {
 
 function fmt(n) { return "\u20B9" + Number(n || 0).toLocaleString("en-IN"); }
 
+// ─── AUTH (Feature 1: Login) ───
+ipcMain.handle("auth:login", (_, { username, password }) => {
+    const users = store.load("users");
+    const user = users.find(u => u.name.toLowerCase() === username.toLowerCase() && u.password === password);
+    if (!user) return { success: false, error: "Invalid credentials" };
+    addLog("User logged in", user.name, user.name);
+    return { success: true, user: { id: user.id, name: user.name, role: user.role, email: user.email } };
+});
+ipcMain.handle("auth:change-password", (_, { userId, oldPass, newPass }) => {
+    const users = store.load("users");
+    const user = users.find(u => u.id === userId);
+    if (!user) return { success: false, error: "User not found" };
+    if (user.password && user.password !== oldPass) return { success: false, error: "Old password incorrect" };
+    user.password = newPass;
+    store.save("users", users);
+    return { success: true };
+});
+
+// ─── PAYMENT METHOD (Feature 2) ───
+ipcMain.handle("sessions:set-payment", (_, { sessionId, paymentMethod }) => {
+    const sessions = store.load("sessions");
+    const session = sessions.find(s => s.id === sessionId);
+    if (session) { session.paymentMethod = paymentMethod; store.save("sessions", sessions); }
+    return { success: true };
+});
+
+// ─── SHIFTS (Feature 5) ───
+ipcMain.handle("shifts:get", () => store.load("shifts"));
+ipcMain.handle("shifts:open", (_, { openingCash, openedBy }) => {
+    const shifts = store.load("shifts");
+    const today = tk();
+    const existing = shifts.find(s => s.date === today && s.status === "open");
+    if (existing) return { success: false, error: "Shift already open for today" };
+    const shift = { id: "sh" + Date.now(), date: today, openingCash: parseFloat(openingCash) || 0, openedBy: openedBy || "Admin", openTime: new Date().toISOString(), status: "open", closingCash: null, closedBy: null, closeTime: null, difference: null };
+    shifts.push(shift);
+    store.save("shifts", shifts);
+    addLog("Shift opened", `Opening cash: ${fmt(openingCash)}`, openedBy);
+    return { success: true, shift };
+});
+ipcMain.handle("shifts:close", (_, { closingCash, closedBy }) => {
+    const shifts = store.load("shifts");
+    const today = tk();
+    const shift = shifts.find(s => s.date === today && s.status === "open");
+    if (!shift) return { success: false, error: "No open shift" };
+    const sessions = store.load("sessions");
+    const refreshment = store.load("refreshment");
+    const todaySessions = sessions.filter(s => s.date === today && s.status === "completed");
+    const todaySales = (refreshment.sales || []).filter(s => s.date === today);
+    const sessionRevenue = todaySessions.reduce((sum, s) => sum + (s.amount || 0), 0);
+    const refreshmentRevenue = todaySales.reduce((sum, s) => sum + (s.price * (s.qty || 1)), 0);
+    const expectedCash = shift.openingCash + sessionRevenue + refreshmentRevenue;
+    const actualCash = parseFloat(closingCash) || 0;
+    shift.closingCash = actualCash;
+    shift.closedBy = closedBy || "Admin";
+    shift.closeTime = new Date().toISOString();
+    shift.status = "closed";
+    shift.sessionRevenue = sessionRevenue;
+    shift.refreshmentRevenue = refreshmentRevenue;
+    shift.expectedCash = expectedCash;
+    shift.difference = actualCash - expectedCash;
+    store.save("shifts", shifts);
+    addLog("Shift closed", `Expected: ${fmt(expectedCash)}, Actual: ${fmt(actualCash)}, Diff: ${fmt(shift.difference)}`, closedBy);
+    return { success: true, shift };
+});
+
+// ─── EXTEND SESSION (Feature 6) ───
+ipcMain.handle("sessions:extend", (_, { deviceId, additionalMinutes }) => {
+    const devices = store.load("devices");
+    const sessions = store.load("sessions");
+    const settings = store.load("settings");
+    const device = devices.find(d => d.id === deviceId);
+    const session = sessions.find(s => s.deviceId === deviceId && s.status === "active");
+    if (!device || !session) return { success: false, error: "No active session" };
+    const ratePerHour = settings.pricing[deviceId] || 200;
+    const extraAmount = Math.ceil((additionalMinutes / 60) * ratePerHour);
+    if (session.sessionEnd) {
+        session.sessionEnd = session.sessionEnd + additionalMinutes * 60 * 1000;
+    }
+    session.durationMinutes = (session.durationMinutes || 0) + additionalMinutes;
+    session.amount = (session.amount || 0) + extraAmount;
+    device.sessionEnd = session.sessionEnd;
+    store.save("sessions", sessions);
+    store.save("devices", devices);
+    addLog("Session extended", `${device.name} +${additionalMinutes}m (+${fmt(extraAmount)})`, "Admin");
+    return { success: true, extraAmount, newEndTime: session.sessionEnd, newDuration: session.durationMinutes, newAmount: session.amount };
+});
+
+// ─── DISCOUNTS (Feature 7) ───
+ipcMain.handle("discounts:get", () => store.load("discounts"));
+ipcMain.handle("discounts:add", (_, { code, type, value, minAmount, maxUses, validFrom, validTo }) => {
+    const d = store.load("discounts");
+    const disc = { id: "dc" + Date.now(), code: code.toUpperCase(), type, value: parseFloat(value) || 0, minAmount: parseFloat(minAmount) || 0, maxUses: parseInt(maxUses) || 100, usedCount: 0, validFrom: validFrom || tk(), validTo: validTo || null, active: true };
+    d.push(disc);
+    store.save("discounts", d);
+    addLog("Discount created", `${code} — ${type === "percent" ? value + "%" : fmt(value)}`, "Admin");
+    return { success: true, discount: disc };
+});
+ipcMain.handle("discounts:delete", (_, { discountId }) => {
+    const d = store.load("discounts");
+    store.save("discounts", d.filter(x => x.id !== discountId));
+    return { success: true };
+});
+ipcMain.handle("discounts:validate", (_, { code, amount }) => {
+    const d = store.load("discounts");
+    const disc = d.find(x => x.code.toUpperCase() === code.toUpperCase() && x.active);
+    if (!disc) return { valid: false, error: "Invalid code" };
+    if (disc.validTo && tk() > disc.validTo) return { valid: false, error: "Expired" };
+    if (disc.usedCount >= disc.maxUses) return { valid: false, error: "Max uses reached" };
+    if (amount < disc.minAmount) return { valid: false, error: `Min order ${fmt(disc.minAmount)}` };
+    const discountAmount = disc.type === "percent" ? Math.round(amount * disc.value / 100) : Math.min(disc.value, amount);
+    return { valid: true, discountAmount, finalAmount: amount - discountAmount, type: disc.type, value: disc.value };
+});
+
+// ─── COMBOS (Feature 8) ───
+ipcMain.handle("combos:get", () => store.load("combos"));
+ipcMain.handle("combos:add", (_, { name, items, comboPrice }) => {
+    const c = store.load("combos");
+    const combo = { id: "cb" + Date.now(), name, items: items || [], comboPrice: parseFloat(comboPrice) || 0, active: true };
+    c.push(combo);
+    store.save("combos", c);
+    addLog("Combo created", `${name} — ${fmt(comboPrice)}`, "Admin");
+    return { success: true, combo };
+});
+ipcMain.handle("combos:delete", (_, { comboId }) => {
+    const c = store.load("combos");
+    store.save("combos", c.filter(x => x.id !== comboId));
+    return { success: true };
+});
+
+// ─── QUEUE (Feature 15) ───
+ipcMain.handle("queue:get", () => store.load("queue"));
+ipcMain.handle("queue:add", (_, { customerName, phone, deviceId }) => {
+    const q = store.load("queue");
+    const entry = { id: "q" + Date.now(), customerName, phone: phone || "", deviceId: deviceId || null, addedAt: new Date().toISOString(), status: "waiting" };
+    q.push(entry);
+    store.save("queue", q);
+    addLog("Queue entry", `${customerName} added to queue`, "Admin");
+    return { success: true, entry };
+});
+ipcMain.handle("queue:remove", (_, { queueId }) => {
+    const q = store.load("queue");
+    store.save("queue", q.filter(x => x.id !== queueId));
+    return { success: true };
+});
+ipcMain.handle("queue:notify", (_, { queueId }) => {
+    const q = store.load("queue");
+    const entry = q.find(x => x.id === queueId);
+    if (entry) entry.status = "notified";
+    store.save("queue", q);
+    return { success: true };
+});
+
+// ─── RECEIPT (Feature 3) ───
+ipcMain.handle("receipt:generate", (_, { sessionId }) => {
+    const sessions = store.load("sessions");
+    const settings = store.load("settings");
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) return { success: false, error: "Session not found" };
+    return {
+        success: true, receipt: {
+            cafeName: settings.general?.cafeName || "Gaming Cafe",
+            address: settings.general?.address || "",
+            phone: settings.general?.phone || "",
+            sessionId: session.id, customer: session.customerName, device: session.deviceName,
+            date: session.date, duration: session.durationMinutes, players: session.players,
+            baseAmount: session.amount, paymentMethod: session.paymentMethod || "Cash",
+            discount: session.discount || 0, finalAmount: session.finalAmount || session.amount,
+            items: session.items || [], timestamp: new Date().toISOString()
+        }
+    };
+});
+
 // ─── DASHBOARD ───
 ipcMain.handle("dashboard:stats", () => {
     const sessions = store.load("sessions");
@@ -416,10 +588,19 @@ ipcMain.handle("reports:revenue", (_, { period }) => {
 ipcMain.handle("backup:export", async () => {
     const result = await dialog.showSaveDialog({ title: "Export Data", defaultPath: "gaming-cafe-backup.json", filters: [{ name: "JSON", extensions: ["json"] }] });
     if (result.canceled) return { success: false };
-    const data = { settings: store.load("settings"), devices: store.load("devices"), sessions: store.load("sessions"), refreshment: store.load("refreshment"), customers: store.load("customers"), staff: store.load("staff"), expenses: store.load("expenses"), users: store.load("users"), logs: store.load("logs"), bookings: store.load("bookings"), exportDate: new Date().toISOString() };
+    const data = { settings: store.load("settings"), devices: store.load("devices"), sessions: store.load("sessions"), refreshment: store.load("refreshment"), customers: store.load("customers"), staff: store.load("staff"), expenses: store.load("expenses"), users: store.load("users"), logs: store.load("logs"), bookings: store.load("bookings"), shifts: store.load("shifts"), discounts: store.load("discounts"), combos: store.load("combos"), queue: store.load("queue"), exportDate: new Date().toISOString() };
     require("fs").writeFileSync(result.filePath, JSON.stringify(data, null, 2));
     addLog("Backup exported", `Saved to ${result.filePath}`, "Admin");
     return { success: true, path: result.filePath };
+});
+ipcMain.handle("backup:import", async (_, { filePath }) => {
+    try {
+        const data = JSON.parse(require("fs").readFileSync(filePath, "utf-8"));
+        const keys = ["settings", "devices", "sessions", "refreshment", "customers", "staff", "expenses", "users", "logs", "bookings", "shifts", "discounts", "combos", "queue"];
+        keys.forEach(k => { if (data[k]) store.save(k, data[k]); });
+        addLog("Backup imported", `Restored from ${filePath}`, "Admin");
+        return { success: true };
+    } catch (e) { return { success: false, error: e.message }; }
 });
 
 app.whenReady().then(createWindow);

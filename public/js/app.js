@@ -18,10 +18,16 @@ let cachedUsers = [];
 let cachedLogs = [];
 let cachedBookings = [];
 let cachedStats = { revenue: 0, activeSessions: 0, totalDevices: 0, walkIns: 0, members: 0, todayBookings: 0, revenueChange: 0, newToday: 0, newThisWeek: 0 };
+let cachedShifts = [];
+let cachedDiscounts = [];
+let cachedCombos = [];
+let cachedQueue = [];
 let reportTab = "revenue";
 const alarmTriggered = new Set();
 let alarmAudioCtx = null;
 let alarmIntervalId = null;
+let currentUser = null;
+let currentShift = null;
 
 // ─── PARTICLES ───
 (function initParticles() {
@@ -79,7 +85,7 @@ function fmtElapsed(startTime) {
 function timeStr(ts) { return new Date(ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }); }
 function todayKey() { return new Date().toISOString().split("T")[0]; }
 function avatarColor(name) {
-    const colors = ["#6366f1", "#06b6d4", "#ec4899", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6"];
+    const colors = ["#00f0ff", "#ff00aa", "#b400ff", "#00ff88", "#ffee00", "#ff3344", "#33f5ff", "#ff33bb"];
     let hash = 0; for (let i = 0; i < (name || "").length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
     return colors[Math.abs(hash) % colors.length];
 }
@@ -163,17 +169,21 @@ function createSidebar() {
             { id: "devices", icon: "🖥️", label: "Devices" },
             { id: "sessions", icon: "⏱️", label: "Sessions" },
             { id: "customers", icon: "👥", label: "Customers" },
-            { id: "bookings", icon: "📅", label: "Bookings" }
+            { id: "bookings", icon: "📅", label: "Bookings" },
+            { id: "queue", icon: "🧑‍🤝‍🧑", label: "Queue" }
         ]},
         { title: "FINANCE", items: [
             { id: "payments", icon: "💰", label: "Payments" },
             { id: "expenses", icon: "📋", label: "Expenses" },
             { id: "revenue", icon: "📈", label: "Revenue" },
-            { id: "reports", icon: "📊", label: "Reports" }
+            { id: "reports", icon: "📊", label: "Reports" },
+            { id: "shifts", icon: "🏦", label: "Shifts" }
         ]},
         { title: "INVENTORY", items: [
             { id: "products", icon: "📦", label: "Products" },
-            { id: "stock", icon: "🏪", label: "Stock" }
+            { id: "stock", icon: "🏪", label: "Stock" },
+            { id: "discounts", icon: "🏷️", label: "Discounts" },
+            { id: "combos", icon: "🎁", label: "Combos" }
         ]},
         { title: "SYSTEM", items: [
             { id: "staff", icon: "🧑‍💼", label: "Staff" },
@@ -191,6 +201,7 @@ function createSidebar() {
         <div class="sidebar-footer">
             <div class="cafe-status"><span style="font-size:12px;color:var(--text-secondary)">Cafe Status</span><span><span class="status-dot"></span><span style="font-size:12px;color:var(--neon-green);font-weight:600">Open</span></span></div>
             <div class="clock-area"><div class="clock-time" id="sidebar-clock"></div><div class="clock-date" id="sidebar-date"></div></div>
+            <button id="logout-btn" style="width:100%;margin-top:10px;padding:8px;background:rgba(255,51,68,0.1);border:1px solid rgba(255,51,68,0.2);border-radius:8px;color:var(--neon-red);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s">Logout (${currentUser?.name || "Admin"})</button>
         </div>
     </div>`;
 }
@@ -207,13 +218,15 @@ function createHeader(page) {
     };
     const [title, sub] = titles[page] || ["Dashboard", ""];
     const notifications = cachedDevices.filter(d => d.status === "expired").length;
+    const uName = currentUser?.name || "Admin";
+    const uRole = currentUser?.role || "Staff";
     return `<div class="app-header">
         <button class="header-hamburger" id="hamburger-btn">☰</button>
         <div class="header-title"><h1>${title}</h1><p>${sub}</p></div>
         <div class="header-actions">
             <button class="btn-new-session" id="header-new-session">+ New Session</button>
             <div class="header-bell" id="header-bell">🔔${notifications > 0 ? `<span class="badge">${notifications}</span>` : ""}</div>
-            <div class="header-admin"><div class="admin-info"><div class="name">Admin</div><div class="role">Super Admin</div></div><div class="avatar">A</div></div>
+            <div class="header-admin"><div class="admin-info"><div class="name">${uName}</div><div class="role">${uRole}</div></div><div class="avatar">${uName.charAt(0).toUpperCase()}</div></div>
         </div>
     </div>`;
 }
@@ -334,7 +347,10 @@ function pageSessions() {
                 <div><span style="color:var(--text-muted)">Amount:</span> <strong style="color:var(--neon-green)">${s.openEnded ? "—" : fmt(s.amount)}</strong></div>
                 <div><span style="color:var(--text-muted)">${s.openEnded ? 'Elapsed' : 'Time Left'}:</span> <strong class="device-time" data-device="${s.deviceId}">${s.openEnded ? fmtElapsed(s.startTime) : fmtTime(s.sessionEnd)}</strong></div>
             </div>
-            <button class="btn-end-session btn-danger btn-full btn-sm" data-device="${s.deviceId}" style="margin-top:12px">⏹ End</button>
+            <div style="display:flex;gap:8px;margin-top:12px">
+                <button class="btn-extend-session btn-outline btn-sm" data-device="${s.deviceId}" style="flex:1">⏱ Extend</button>
+                <button class="btn-end-session btn-danger btn-sm" data-device="${s.deviceId}" style="flex:1">⏹ End</button>
+            </div>
         </div>`).join("")}</div>`}
         <h3 style="font-size:16px;font-weight:700;color:#fff;margin-bottom:14px">Recent Completed</h3>
         ${recent.length === 0 ? '<div class="dash-card" style="text-align:center;padding:30px;color:var(--text-muted)">No completed sessions yet</div>' :
@@ -1248,6 +1264,7 @@ function bindDevicesEvents() {
 }
 
 function bindSessionsEvents() {
+    document.querySelectorAll(".btn-extend-session").forEach(b => b.addEventListener("click", () => extendSession(b.dataset.device)));
     document.querySelectorAll(".btn-end-session").forEach(b => b.addEventListener("click", async () => {
         const devId = b.dataset.device;
         const ses = cachedSessions.find(s => s.deviceId === devId && s.status === "active");
@@ -1277,9 +1294,7 @@ function bindSessionsEvents() {
             ov.querySelector(".modal-close").addEventListener("click", closeModal);
             ov.querySelector("#bill-confirm-ok").addEventListener("click", async () => {
                 closeModal();
-                await window.api.sessions.end({ deviceId: devId });
-                toast(`Session ended — ${fmt(preview.total)} collected`);
-                await loadSessions(); await loadDashboard(); render();
+                showPaymentMethodModal(devId, preview.total, "open");
             });
         } else {
             const preview = await window.api.sessions.preview({ deviceId: devId });
@@ -1315,25 +1330,153 @@ function bindSessionsEvents() {
                 ov.querySelector(".modal-close").addEventListener("click", closeModal);
                 ov.querySelector("#charge-full").addEventListener("click", async () => {
                     closeModal();
-                    await window.api.sessions.end({ deviceId: devId, chargeMode: "full" });
-                    toast(`Session ended — ${fmt(fullCharge)} collected (full)`);
-                    await loadSessions(); await loadDashboard(); render();
+                    showPaymentMethodModal(devId, fullCharge, "full");
                 });
                 ov.querySelector("#charge-actual").addEventListener("click", async () => {
                     closeModal();
-                    await window.api.sessions.end({ deviceId: devId, chargeMode: "actual" });
-                    toast(`Session ended — ${fmt(actualCharge)} collected (actual ${elapsedMin}m)`);
-                    await loadSessions(); await loadDashboard(); render();
+                    showPaymentMethodModal(devId, actualCharge, "actual");
                 });
             } else {
                 const res = await window.api.sessions.end({ deviceId: devId });
-                toast(res.amount ? `Session ended — ${fmt(res.amount)}` : "Session ended");
-                await loadSessions(); await loadDashboard(); render();
+                showPaymentMethodModal(devId, res.amount || ses.amount || 0, "full");
             }
         }
     }));
     startCountdown();
 }
+
+// ─── PAYMENT METHOD MODAL (Feature 2) ───
+function showPaymentMethodModal(deviceId, amount, chargeMode) {
+    const ov = showModal(`<div class="modal-box" style="text-align:center">
+        <h2 style="font-family:var(--font-display);font-size:16px;color:#fff;margin:0 0 4px">Payment Method</h2>
+        <p style="color:var(--neon-green);font-size:24px;font-weight:800;margin:12px 0 20px">${fmt(amount)}</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+            <button class="pay-method-btn" data-method="Cash" style="padding:16px;font-size:13px;font-weight:600;cursor:pointer;border-radius:12px;border:2px solid var(--card-border);background:var(--surface);color:#fff;transition:all .2s">💵 Cash</button>
+            <button class="pay-method-btn" data-method="UPI" style="padding:16px;font-size:13px;font-weight:600;cursor:pointer;border-radius:12px;border:2px solid var(--card-border);background:var(--surface);color:#fff;transition:all .2s">📱 UPI</button>
+            <button class="pay-method-btn" data-method="Card" style="padding:16px;font-size:13px;font-weight:600;cursor:pointer;border-radius:12px;border:2px solid var(--card-border);background:var(--surface);color:#fff;transition:all .2s">💳 Card</button>
+            <button class="pay-method-btn" data-method="Wallet" style="padding:16px;font-size:13px;font-weight:600;cursor:pointer;border-radius:12px;border:2px solid var(--card-border);background:var(--surface);color:#fff;transition:all .2s">👛 Wallet</button>
+        </div>
+        <div id="pay-error" style="color:var(--neon-red);font-size:12px;display:none;margin-bottom:8px">Select a payment method</div>
+    </div>`);
+    ov.querySelectorAll(".pay-method-btn").forEach(btn => {
+        btn.addEventListener("click", async () => {
+            ov.querySelectorAll(".pay-method-btn").forEach(b => { b.style.borderColor = "var(--card-border)"; b.style.background = "var(--surface)"; });
+            btn.style.borderColor = "var(--primary)";
+            btn.style.background = "rgba(0,240,255,0.1)";
+            const method = btn.dataset.method;
+            const sessions = cachedSessions;
+            const session = sessions.find(s => s.deviceId === deviceId && s.status === "active");
+            if (session) await window.api.payments.setMethod({ sessionId: session.id, paymentMethod: method });
+            await window.api.sessions.end({ deviceId, chargeMode });
+            closeModal();
+            toast(`Session ended — ${fmt(amount)} via ${method}`);
+            await loadSessions(); await loadDashboard(); render();
+            showReceiptButton(session?.id);
+        });
+    });
+}
+
+// ─── RECEIPT MODAL (Feature 3) ───
+function showReceiptButton(sessionId) {
+    if (!sessionId) return;
+    const ov = showModal(`<div class="modal-box" style="text-align:center">
+        <div style="font-size:48px;margin-bottom:8px">✅</div>
+        <h2 style="font-size:18px;font-weight:700;color:#fff;margin:0 0 16px">Payment Collected</h2>
+        <button id="receipt-gen-btn" class="btn-primary" style="margin-bottom:10px">📄 Generate Receipt</button>
+        <button class="modal-close btn-outline" style="width:100%">Close</button>
+    </div>`);
+    ov.querySelector(".modal-close")?.addEventListener("click", closeModal);
+    ov.querySelector("#receipt-gen-btn")?.addEventListener("click", async () => {
+        const res = await window.api.receipt.generate({ sessionId });
+        if (res.success) {
+            const r = res.receipt;
+            const itemsHtml = (r.items || []).map(it => `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-secondary);padding:4px 0"><span>${it.name} x${it.qty || 1}</span><span>${fmt(it.price)}</span></div>`).join("");
+            const receiptHtml = `<div class="modal-box" style="max-width:380px;font-family:monospace">
+                <div style="text-align:center;border-bottom:2px dashed var(--card-border);padding-bottom:12px;margin-bottom:12px">
+                    <h2 style="font-family:var(--font-display);font-size:16px;color:var(--primary);margin:0">${r.cafeName}</h2>
+                    <p style="color:var(--text-muted);font-size:11px;margin:4px 0 0">${r.address}</p>
+                </div>
+                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">
+                    <div>Receipt #: ${r.sessionId}</div><div>Date: ${r.date}</div><div>Customer: ${r.customer}</div><div>Device: ${r.device}</div>
+                </div>
+                <div style="border-top:1px dashed var(--card-border);padding-top:8px;margin-top:8px">
+                    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-secondary);padding:3px 0"><span>Session (${r.duration}m, ${r.players}P)</span><span>${fmt(r.baseAmount)}</span></div>
+                    ${itemsHtml}
+                    ${r.discount > 0 ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--neon-green);padding:3px 0"><span>Discount</span><span>-${fmt(r.discount)}</span></div>` : ''}
+                </div>
+                <div style="border-top:2px dashed var(--card-border);padding-top:8px;margin-top:8px;display:flex;justify-content:space-between;font-size:14px;font-weight:800;color:#fff"><span>TOTAL</span><span>${fmt(r.finalAmount)}</span></div>
+                <div style="text-align:center;font-size:11px;color:var(--text-muted);margin-top:12px">Paid via: ${r.paymentMethod}</div>
+                <button onclick="closeModal()" class="btn-primary btn-full" style="margin-top:16px">Close</button>
+            </div>`;
+            closeModal();
+            showModal(receiptHtml);
+        }
+    });
+}
+
+// ─── EXTEND SESSION (Feature 6) ───
+function extendSession(deviceId) {
+    const ses = cachedSessions.find(s => s.deviceId === deviceId && s.status === "active");
+    if (!ses) return;
+    const ov = showModal(`<div class="modal-box"><div class="modal-header"><h2>Extend Session</h2><button class="modal-close" onclick="closeModal()">&times;</button></div>
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">${ses.deviceName} — ${ses.customerName}</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
+            <button class="extend-opt" data-min="15" style="padding:12px;font-size:13px;font-weight:600;cursor:pointer;border-radius:10px;border:2px solid var(--card-border);background:var(--surface);color:#fff">+15 min</button>
+            <button class="extend-opt" data-min="30" style="padding:12px;font-size:13px;font-weight:600;cursor:pointer;border-radius:10px;border:2px solid var(--primary);background:rgba(0,240,255,0.1);color:#fff">+30 min</button>
+            <button class="extend-opt" data-min="60" style="padding:12px;font-size:13px;font-weight:600;cursor:pointer;border-radius:10px;border:2px solid var(--card-border);background:var(--surface);color:#fff">+60 min</button>
+        </div>
+        <div id="extend-preview" style="text-align:center;color:var(--neon-green);font-size:14px;font-weight:700"></div>
+    </div>`);
+    ov.querySelectorAll(".extend-opt").forEach(btn => {
+        btn.addEventListener("click", async () => {
+            ov.querySelectorAll(".extend-opt").forEach(b => { b.style.borderColor = "var(--card-border)"; b.style.background = "var(--surface)"; });
+            btn.style.borderColor = "var(--primary)";
+            btn.style.background = "rgba(0,240,255,0.1)";
+            const mins = parseInt(btn.dataset.min);
+            const ratePerHour = cachedSettings?.pricing?.[deviceId] || 200;
+            const extra = Math.ceil((mins / 60) * ratePerHour);
+            document.getElementById("extend-preview").textContent = `+${fmt(extra)} for ${mins} min`;
+            btn.onclick = async () => {
+                const res = await window.api.sessions.extend({ deviceId, additionalMinutes: mins });
+                closeModal();
+                if (res.success) { toast(`Session extended +${mins}m (${fmt(res.extraAmount)})`); await loadSessions(); render(); }
+                else toast(res.error, "error");
+            };
+        });
+    });
+}
+
+// ─── POINTS REDEMPTION (Feature 4) ───
+function showRedeemPointsOption(customerId, onApply) {
+    const cust = cachedCustomers.find(c => c.id === customerId);
+    if (!cust || !cust.points || cust.points < 10) return;
+    const redeemRate = cachedSettings?.loyalty?.redeemRate || 100;
+    const pointsValue = Math.floor(cust.points / 10) * 10;
+    const discount = Math.floor(pointsValue / 10);
+    const div = document.createElement("div");
+    div.id = "redeem-points-box";
+    div.style.cssText = "background:rgba(180,0,255,0.1);border:1px solid rgba(180,0,255,0.3);border-radius:10px;padding:10px;margin-top:8px";
+    div.innerHTML = `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--neon-purple)">
+        <input type="checkbox" id="redeem-cb"> Redeem ${pointsValue} points (save ${fmt(discount)})
+    </label>`;
+    const container = document.getElementById("session-price-breakdown") || document.getElementById("session-config-left");
+    if (container) container.appendChild(div);
+    document.getElementById("redeem-cb")?.addEventListener("change", (e) => {
+        if (e.target.checked) onApply(discount);
+        else onApply(0);
+    });
+}
+
+// ─── KEYBOARD SHORTCUTS (Feature 17) ───
+document.addEventListener("keydown", (e) => {
+    if (!currentUser) return;
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
+    if (e.ctrlKey || e.metaKey) {
+        if (e.key === "n" || e.key === "N") { e.preventDefault(); document.getElementById("header-new-session")?.click(); }
+        if (e.key === "f" || e.key === "F") { e.preventDefault(); document.querySelector(".header-search input")?.focus(); }
+    }
+    if (e.key === "Escape") closeModal();
+});
 
 function bindCustomersEvents() {
     document.getElementById("btn-add-customer")?.addEventListener("click", modalAddCustomer);
@@ -1477,34 +1620,268 @@ function startCountdown() {
     }, 1000);
 }
 
+// ─── NEW LOAD FUNCTIONS ───
+async function loadShifts() { cachedShifts = await window.api.shifts.get(); }
+async function loadDiscounts() { cachedDiscounts = await window.api.discounts.get(); }
+async function loadCombos() { cachedCombos = await window.api.combos.get(); }
+async function loadQueue() { cachedQueue = await window.api.queue.get(); }
+
+// ─── SHIFTS PAGE ───
+function pageShifts() {
+    const today = tk();
+    const todayShift = cachedShifts.find(s => s.date === today && s.status === "open");
+    const recentShifts = cachedShifts.filter(s => s.status === "closed").slice(-10).reverse();
+    currentShift = todayShift;
+    return `<div class="page-enter">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
+            <div class="dash-card">
+                <h3 style="font-family:var(--font-display);font-size:14px;color:#fff;margin:0 0 16px;letter-spacing:0.5px">TODAY'S SHIFT</h3>
+                ${todayShift ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                    <div><div style="color:var(--text-muted);font-size:11px;margin-bottom:4px">OPENING CASH</div><div style="color:#fff;font-size:18px;font-weight:700">${fmt(todayShift.openingCash)}</div></div>
+                    <div><div style="color:var(--text-muted);font-size:11px;margin-bottom:4px">STATUS</div><div class="badge-inprogress">OPEN</div></div>
+                    <div><div style="color:var(--text-muted);font-size:11px;margin-bottom:4px">OPENED BY</div><div style="color:#fff;font-size:13px">${todayShift.openedBy}</div></div>
+                    <div><div style="color:var(--text-muted);font-size:11px;margin-bottom:4px">OPEN TIME</div><div style="color:#fff;font-size:13px">${new Date(todayShift.openTime).toLocaleTimeString("en-IN")}</div></div>
+                </div>
+                <button id="close-shift-btn" class="btn-danger btn-full" style="margin-top:16px">Close Shift</button>` : `<p style="color:var(--text-muted);margin-bottom:16px">No shift open today</p><button id="open-shift-btn" class="btn-primary btn-full">Open Shift</button>`}
+            </div>
+            <div class="dash-card">
+                <h3 style="font-family:var(--font-display);font-size:14px;color:#fff;margin:0 0 16px;letter-spacing:0.5px">SHIFT HISTORY</h3>
+                ${recentShifts.length === 0 ? '<p style="color:var(--text-muted)">No previous shifts</p>' : `<div style="max-height:260px;overflow-y:auto">${recentShifts.map(s => `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--card-border)">
+                    <div><div style="color:#fff;font-size:13px;font-weight:600">${s.date}</div><div style="color:var(--text-muted);font-size:11px">Opened by ${s.openedBy}</div></div>
+                    <div style="text-align:right"><div style="color:#fff;font-size:13px">In: ${fmt(s.openingCash)} | Out: ${fmt(s.closingCash)}</div><div style="color:${s.difference >= 0 ? 'var(--neon-green)' : 'var(--neon-red)'};font-size:11px;font-weight:600">Diff: ${fmt(s.difference)}</div></div>
+                </div>`).join("")}</div>`}
+            </div>
+        </div>
+    </div>`;
+}
+function bindShiftsEvents() {
+    document.getElementById("open-shift-btn")?.addEventListener("click", () => {
+        showModal(`<div class="modal-box"><div class="modal-header"><h2>Open Shift</h2><button class="modal-close" onclick="closeModal()">&times;</button></div>
+            <div class="form-group"><label>Opening Cash (₹)</label><input id="shift-cash" class="form-input" type="number" value="0" min="0"></div>
+            <button id="shift-open-confirm" class="btn-primary btn-full">Open Shift</button></div>`);
+        document.getElementById("shift-open-confirm")?.addEventListener("click", async () => {
+            const cash = document.getElementById("shift-cash").value;
+            await window.api.shifts.open({ openingCash: cash, openedBy: currentUser?.name || "Admin" });
+            closeModal(); toast("Shift opened"); await loadShifts(); render();
+        });
+    });
+    document.getElementById("close-shift-btn")?.addEventListener("click", () => {
+        showModal(`<div class="modal-box"><div class="modal-header"><h2>Close Shift</h2><button class="modal-close" onclick="closeModal()">&times;</button></div>
+            <div class="form-group"><label>Closing Cash (₹)</label><input id="shift-close-cash" class="form-input" type="number" value="0" min="0"></div>
+            <button id="shift-close-confirm" class="btn-danger btn-full">Close Shift</button></div>`);
+        document.getElementById("shift-close-confirm")?.addEventListener("click", async () => {
+            const cash = document.getElementById("shift-close-cash").value;
+            const result = await window.api.shifts.close({ closingCash: cash, closedBy: currentUser?.name || "Admin" });
+            closeModal();
+            if (result.success) { toast(`Shift closed. Difference: ${fmt(result.shift.difference)}`); await loadShifts(); render(); }
+            else toast(result.error, "error");
+        });
+    });
+}
+
+// ─── DISCOUNTS PAGE ───
+function pageDiscounts() {
+    return `<div class="page-enter">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+            <h2 style="font-family:var(--font-display);font-size:14px;color:#fff;letter-spacing:0.5px">DISCOUNT CODES (${cachedDiscounts.length})</h2>
+            <button id="add-discount-btn" class="btn-primary">+ Add Discount</button>
+        </div>
+        ${cachedDiscounts.length === 0 ? '<div class="dash-card" style="text-align:center;padding:40px"><p style="color:var(--text-muted)">No discount codes yet</p></div>' :
+        `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">${cachedDiscounts.map(d => `<div class="dash-card">
+            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">
+                <div><div style="font-family:var(--font-display);font-size:16px;color:var(--primary);letter-spacing:1px">${d.code}</div>
+                <div style="color:var(--text-muted);font-size:11px;margin-top:4px">${d.type === "percent" ? d.value + "% OFF" : fmt(d.value) + " OFF"}</div></div>
+                <button class="btn-danger btn-sm" onclick="window._delDiscount('${d.id}')">Del</button>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted)">Min: ${fmt(d.minAmount)} | Used: ${d.usedCount}/${d.maxUses} | ${d.active ? 'Active' : 'Inactive'}</div>
+        </div>`).join("")}</div>`}
+    </div>`;
+}
+window._delDiscount = async (id) => { await window.api.discounts.delete({ discountId: id }); toast("Discount deleted"); await loadDiscounts(); render(); };
+function bindDiscountsEvents() {
+    document.getElementById("add-discount-btn")?.addEventListener("click", () => {
+        showModal(`<div class="modal-box"><div class="modal-header"><h2>Add Discount</h2><button class="modal-close" onclick="closeModal()">&times;</button></div>
+            <div class="form-group"><label>Code</label><input id="disc-code" class="form-input" placeholder="e.g. SAVE20"></div>
+            <div class="form-group"><label>Type</label><select id="disc-type" class="form-select"><option value="percent">% Discount</option><option value="flat">Flat Amount</option></select></div>
+            <div class="form-group"><label>Value</label><input id="disc-value" class="form-input" type="number" placeholder="20"></div>
+            <div class="form-group"><label>Min Amount (₹)</label><input id="disc-min" class="form-input" type="number" value="0"></div>
+            <div class="form-group"><label>Max Uses</label><input id="disc-max" class="form-input" type="number" value="100"></div>
+            <button id="disc-add-confirm" class="btn-primary btn-full">Add Discount</button></div>`);
+        document.getElementById("disc-add-confirm")?.addEventListener("click", async () => {
+            const code = document.getElementById("disc-code").value;
+            const type = document.getElementById("disc-type").value;
+            const value = document.getElementById("disc-value").value;
+            const minAmount = document.getElementById("disc-min").value;
+            const maxUses = document.getElementById("disc-max").value;
+            if (!code || !value) { toast("Code and value required", "error"); return; }
+            await window.api.discounts.add({ code, type, value, minAmount, maxUses });
+            closeModal(); toast("Discount added"); await loadDiscounts(); render();
+        });
+    });
+}
+
+// ─── COMBOS PAGE ───
+function pageCombos() {
+    return `<div class="page-enter">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+            <h2 style="font-family:var(--font-display);font-size:14px;color:#fff;letter-spacing:0.5px">COMBO DEALS (${cachedCombos.length})</h2>
+            <button id="add-combo-btn" class="btn-primary">+ Add Combo</button>
+        </div>
+        ${cachedCombos.length === 0 ? '<div class="dash-card" style="text-align:center;padding:40px"><p style="color:var(--text-muted)">No combo deals yet</p></div>' :
+        `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">${cachedCombos.map(c => `<div class="dash-card">
+            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">
+                <div><div style="font-family:var(--font-display);font-size:16px;color:var(--accent)">${c.name}</div>
+                <div style="color:var(--neon-green);font-size:18px;font-weight:700;margin-top:4px">${fmt(c.comboPrice)}</div></div>
+                <button class="btn-danger btn-sm" onclick="window._delCombo('${c.id}')">Del</button>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted)">${(c.items || []).length} items</div>
+        </div>`).join("")}</div>`}
+    </div>`;
+}
+window._delCombo = async (id) => { await window.api.combos.delete({ comboId: id }); toast("Combo deleted"); await loadCombos(); render(); };
+function bindCombosEvents() {
+    document.getElementById("add-combo-btn")?.addEventListener("click", () => {
+        const menuItems = cachedRefreshment.menu;
+        showModal(`<div class="modal-box"><div class="modal-header"><h2>Add Combo Deal</h2><button class="modal-close" onclick="closeModal()">&times;</button></div>
+            <div class="form-group"><label>Combo Name</label><input id="combo-name" class="form-input" placeholder="e.g. Gaming Meal"></div>
+            <div class="form-group"><label>Select Items</label><div id="combo-items-list" style="max-height:150px;overflow-y:auto;border:1px solid var(--card-border);border-radius:8px;padding:8px">
+                ${menuItems.map(m => `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;color:var(--text-secondary);font-size:12px;cursor:pointer"><input type="checkbox" value="${m.id}" class="combo-item-cb"> ${m.name} (${fmt(m.price)})</label>`).join("")}
+            </div></div>
+            <div class="form-group"><label>Combo Price (₹)</label><input id="combo-price" class="form-input" type="number" placeholder="350"></div>
+            <button id="combo-add-confirm" class="btn-primary btn-full">Add Combo</button></div>`);
+        document.getElementById("combo-add-confirm")?.addEventListener("click", async () => {
+            const name = document.getElementById("combo-name").value;
+            const price = document.getElementById("combo-price").value;
+            const items = [...document.querySelectorAll(".combo-item-cb:checked")].map(cb => cb.value);
+            if (!name || !price) { toast("Name and price required", "error"); return; }
+            await window.api.combos.add({ name, items, comboPrice: price });
+            closeModal(); toast("Combo added"); await loadCombos(); render();
+        });
+    });
+}
+
+// ─── QUEUE PAGE ───
+function pageQueue() {
+    const waiting = cachedQueue.filter(q => q.status === "waiting");
+    const notified = cachedQueue.filter(q => q.status === "notified");
+    return `<div class="page-enter">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+            <h2 style="font-family:var(--font-display);font-size:14px;color:#fff;letter-spacing:0.5px">WALK-IN QUEUE (${waiting.length} waiting)</h2>
+            <button id="add-queue-btn" class="btn-primary">+ Add to Queue</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+            <div class="dash-card"><h3 style="color:var(--neon-yellow);font-size:13px;margin:0 0 12px">WAITING (${waiting.length})</h3>
+                ${waiting.length === 0 ? '<p style="color:var(--text-muted)">No one waiting</p>' : waiting.map((q,i) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--card-border)">
+                    <div><span style="color:var(--primary);font-weight:700;margin-right:8px">#${i+1}</span><span style="color:#fff;font-weight:600">${q.customerName}</span><span style="color:var(--text-muted);font-size:11px;margin-left:8px">${q.phone || ""}</span></div>
+                    <div style="display:flex;gap:6px"><button class="btn-primary btn-sm" onclick="window._notifyQueue('${q.id}')">Notify</button><button class="btn-danger btn-sm" onclick="window._removeQueue('${q.id}')">X</button></div>
+                </div>`).join("")}</div>
+            <div class="dash-card"><h3 style="color:var(--neon-green);font-size:13px;margin:0 0 12px">NOTIFIED (${notified.length})</h3>
+                ${notified.length === 0 ? '<p style="color:var(--text-muted)">None notified yet</p>' : notified.map(q => `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--card-border)">
+                    <span style="color:#fff;font-weight:600">${q.customerName}</span><button class="btn-danger btn-sm" onclick="window._removeQueue('${q.id}')">Remove</button>
+                </div>`).join("")}</div>
+        </div>
+    </div>`;
+}
+window._notifyQueue = async (id) => { await window.api.queue.notify({ queueId: id }); toast("Customer notified"); await loadQueue(); render(); };
+window._removeQueue = async (id) => { await window.api.queue.remove({ queueId: id }); await loadQueue(); render(); };
+function bindQueueEvents() {
+    document.getElementById("add-queue-btn")?.addEventListener("click", () => {
+        showModal(`<div class="modal-box"><div class="modal-header"><h2>Add to Queue</h2><button class="modal-close" onclick="closeModal()">&times;</button></div>
+            <div class="form-group"><label>Customer Name</label><input id="queue-name" class="form-input" placeholder="Name"></div>
+            <div class="form-group"><label>Phone (optional)</label><input id="queue-phone" class="form-input" placeholder="Phone"></div>
+            <button id="queue-add-confirm" class="btn-primary btn-full">Add to Queue</button></div>`);
+        document.getElementById("queue-add-confirm")?.addEventListener("click", async () => {
+            const name = document.getElementById("queue-name").value;
+            if (!name) { toast("Name required", "error"); return; }
+            await window.api.queue.add({ customerName: name, phone: document.getElementById("queue-phone").value });
+            closeModal(); toast("Added to queue"); await loadQueue(); render();
+        });
+    });
+}
+
 function updateClock() {
     const now = new Date(); const cl = document.getElementById("sidebar-clock"); const dt = document.getElementById("sidebar-date");
     if (cl) cl.textContent = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
     if (dt) dt.textContent = now.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
+// ─── LOGIN SCREEN ───
+function showLogin() {
+    app.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:var(--bg-deep);position:relative;z-index:10">
+        <div class="modal-box" style="max-width:400px;text-align:center">
+            <div style="font-size:48px;margin-bottom:8px">🎮</div>
+            <h1 style="font-family:var(--font-display);font-size:22px;color:#fff;margin:0 0 4px;letter-spacing:1px">GAME ZONE</h1>
+            <p style="color:var(--text-muted);font-size:12px;margin:0 0 24px">Gaming Cafe Management</p>
+            <div class="form-group" style="text-align:left">
+                <label>Username</label>
+                <input id="login-user" class="form-input" placeholder="Enter username" autocomplete="username">
+            </div>
+            <div class="form-group" style="text-align:left">
+                <label>Password</label>
+                <input id="login-pass" class="form-input" type="password" placeholder="Enter password" autocomplete="current-password">
+            </div>
+            <div id="login-error" style="color:var(--neon-red);font-size:12px;margin-bottom:12px;display:none"></div>
+            <button id="login-btn" class="btn-primary btn-full" style="padding:12px;font-size:14px">Login</button>
+            <p style="color:var(--text-muted);font-size:11px;margin-top:16px">Default: admin / admin123</p>
+        </div>
+    </div>`;
+    const btn = document.getElementById("login-btn");
+    const userInput = document.getElementById("login-user");
+    const passInput = document.getElementById("login-pass");
+    const errorDiv = document.getElementById("login-error");
+    userInput.focus();
+    async function doLogin() {
+        const username = userInput.value.trim();
+        const password = passInput.value;
+        if (!username || !password) { errorDiv.textContent = "Please enter username and password"; errorDiv.style.display = "block"; return; }
+        const result = await window.api.auth.login({ username, password });
+        if (result.success) {
+            currentUser = result.user;
+            sessionStorage.setItem("currentUser", JSON.stringify(result.user));
+            render();
+        } else {
+            errorDiv.textContent = result.error || "Invalid credentials";
+            errorDiv.style.display = "block";
+            passInput.value = "";
+            passInput.focus();
+        }
+    }
+    btn.addEventListener("click", doLogin);
+    passInput.addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
+    userInput.addEventListener("keydown", e => { if (e.key === "Enter") passInput.focus(); });
+}
+
 // ─── RENDER ───
 async function render() {
+    if (!currentUser) {
+        const saved = sessionStorage.getItem("currentUser");
+        if (saved) { currentUser = JSON.parse(saved); }
+        else { showLogin(); return; }
+    }
     if (clockInterval) { clearInterval(clockInterval); clockInterval = null; }
     if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
     document.getElementById("alarm-overlay")?.remove(); stopAlarm();
 
     const loadMap = {
-        dashboard: () => Promise.all([loadDashboard(), loadSettings(), loadCustomers(), loadRefreshment(), loadSessions(), loadBookings()]),
+        dashboard: () => Promise.all([loadDashboard(), loadSettings(), loadCustomers(), loadRefreshment(), loadSessions(), loadBookings(), loadShifts()]),
         devices: () => Promise.all([loadDevices(), loadSettings()]),
-        sessions: () => Promise.all([loadSessions(), loadDevices(), loadSettings()]),
+        sessions: () => Promise.all([loadSessions(), loadDevices(), loadSettings(), loadDiscounts()]),
         customers: () => Promise.all([loadCustomers(), loadSettings()]),
         bookings: () => Promise.all([loadBookings(), loadDevices()]),
         payments: () => Promise.all([loadSessions(), loadSettings()]),
         expenses: () => loadExpenses(),
         revenue: () => Promise.all([loadSessions(), loadRefreshment()]),
-        reports: () => Promise.all([loadSessions(), loadCustomers(), loadRefreshment()]),
-        products: () => Promise.all([loadRefreshment(), loadCustomers()]),
+        reports: () => Promise.all([loadSessions(), loadCustomers(), loadRefreshment(), loadExpenses()]),
+        products: () => Promise.all([loadRefreshment(), loadCustomers(), loadCombos()]),
         stock: () => loadRefreshment(),
         settings: () => Promise.all([loadSettings(), loadDevices()]),
         staff: () => loadStaff(),
         users: () => loadUsers(),
-        logs: () => loadLogs()
+        logs: () => loadLogs(),
+        shifts: () => Promise.all([loadShifts(), loadSessions(), loadRefreshment()]),
+        discounts: () => loadDiscounts(),
+        combos: () => Promise.all([loadCombos(), loadRefreshment()]),
+        queue: () => loadQueue()
     };
     await (loadMap[activePage] || (() => Promise.resolve()))();
 
@@ -1523,7 +1900,11 @@ async function render() {
         settings: { content: pageSettings, bind: bindSettingsEvents },
         staff: { content: pageStaff, bind: bindStaffEvents },
         users: { content: pageUsers, bind: bindUsersEvents },
-        logs: { content: pageLogs, bind: bindLogsEvents }
+        logs: { content: pageLogs, bind: bindLogsEvents },
+        shifts: { content: pageShifts, bind: bindShiftsEvents },
+        discounts: { content: pageDiscounts, bind: bindDiscountsEvents },
+        combos: { content: pageCombos, bind: bindCombosEvents },
+        queue: { content: pageQueue, bind: bindQueueEvents }
     };
     const page = pages[activePage] || pages.dashboard;
 
@@ -1538,6 +1919,7 @@ async function render() {
     document.querySelectorAll(".nav-item").forEach(b => b.addEventListener("click", () => { activePage = b.dataset.page; render(); }));
     document.getElementById("hamburger-btn")?.addEventListener("click", () => { const s = document.querySelector(".sidebar"); if (s) s.style.display = s.style.display === "none" ? "flex" : "none"; });
     document.getElementById("header-bell")?.addEventListener("click", () => { const expired = cachedDevices.filter(d => d.status === "expired"); if (expired.length > 0) { activePage = "devices"; render(); } else toast("No alerts"); });
+    document.getElementById("logout-btn")?.addEventListener("click", () => { currentUser = null; sessionStorage.removeItem("currentUser"); showLogin(); });
     if (page.bind) page.bind();
     updateClock(); clockInterval = setInterval(updateClock, 1000);
 }
