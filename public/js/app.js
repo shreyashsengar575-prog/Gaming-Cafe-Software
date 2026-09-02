@@ -1492,6 +1492,8 @@ document.addEventListener("keydown", (e) => {
     if (e.key === "p" || e.key === "P") { activePage = "products"; render(); }
     // Q → Queue
     if (e.key === "q" || e.key === "Q") { activePage = "queue"; render(); }
+    // Ctrl + R → Restart App
+    if (ctrl && (e.key === "r" || e.key === "R")) { e.preventDefault(); location.reload(); }
     // R → Refresh current page
     if (e.key === "r" || e.key === "R") { render(); toast("Refreshed"); }
     // ? → Show shortcuts help
@@ -1510,7 +1512,8 @@ function showShortcutsHelp() {
             <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">S</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">Sessions</span></div>
             <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">P</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">Products</span></div>
             <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">Q</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">Queue</span></div>
-            <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">R</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">Refresh</span></div>
+            <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">R</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">Refresh Page</span></div>
+            <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">Ctrl + R</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">Restart App</span></div>
             <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">?</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">Show Shortcuts</span></div>
             <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">1-9</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">Quick Nav</span></div>
         </div>
