@@ -1468,15 +1468,54 @@ function showRedeemPointsOption(customerId, onApply) {
     });
 }
 
-// ─── KEYBOARD SHORTCUTS (Feature 17) ───
+// ─── KEYBOARD SHORTCUTS ───
 document.addEventListener("keydown", (e) => {
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
-    if (e.ctrlKey || e.metaKey) {
-        if (e.key === "n" || e.key === "N") { e.preventDefault(); document.getElementById("header-new-session")?.click(); }
-        if (e.key === "f" || e.key === "F") { e.preventDefault(); document.querySelector(".header-search input")?.focus(); }
-    }
+    const ctrl = e.ctrlKey || e.metaKey;
+
+    // Ctrl + N → New Session
+    if (ctrl && (e.key === "n" || e.key === "N")) { e.preventDefault(); document.getElementById("header-new-session")?.click(); }
+    // Ctrl + F → Focus Search
+    if (ctrl && (e.key === "f" || e.key === "F")) { e.preventDefault(); document.querySelector(".header-search input")?.focus(); }
+    // Ctrl + S → Save (in modals)
+    if (ctrl && (e.key === "s" || e.key === "S")) { e.preventDefault(); document.querySelector(".modal-box .btn-primary, .modal-box #m-edit-confirm, .modal-box #settings-save")?.click(); }
+    // Escape → Close modal
     if (e.key === "Escape") closeModal();
+    // 1-9 → Quick navigate pages
+    const pageKeys = { "1": "dashboard", "2": "devices", "3": "sessions", "4": "customers", "5": "bookings", "6": "payments", "7": "expenses", "8": "revenue", "9": "reports" };
+    if (!ctrl && pageKeys[e.key]) { activePage = pageKeys[e.key]; render(); }
+    // D → Dashboard
+    if (e.key === "d" || e.key === "D") { activePage = "dashboard"; render(); }
+    // S → Sessions
+    if (e.key === "s") { activePage = "sessions"; render(); }
+    // P → Products
+    if (e.key === "p" || e.key === "P") { activePage = "products"; render(); }
+    // Q → Queue
+    if (e.key === "q" || e.key === "Q") { activePage = "queue"; render(); }
+    // R → Refresh current page
+    if (e.key === "r" || e.key === "R") { render(); toast("Refreshed"); }
+    // ? → Show shortcuts help
+    if (e.key === "?") showShortcutsHelp();
 });
+
+function showShortcutsHelp() {
+    showModal(`<div class="modal-box" style="max-width:500px">
+        <div class="modal-header"><h2>Keyboard Shortcuts</h2><button class="modal-close" onclick="closeModal()">&times;</button></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">Ctrl + N</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">New Session</span></div>
+            <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">Ctrl + F</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">Search</span></div>
+            <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">Ctrl + S</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">Save</span></div>
+            <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">Esc</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">Close Modal</span></div>
+            <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">D</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">Dashboard</span></div>
+            <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">S</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">Sessions</span></div>
+            <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">P</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">Products</span></div>
+            <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">Q</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">Queue</span></div>
+            <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">R</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">Refresh</span></div>
+            <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">?</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">Show Shortcuts</span></div>
+            <div style="padding:8px 12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--card-border)"><kbd style="background:var(--primary);color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">1-9</kbd><span style="color:var(--text-secondary);font-size:12px;margin-left:8px">Quick Nav</span></div>
+        </div>
+    </div>`);
+}
 
 function bindCustomersEvents() {
     document.getElementById("btn-add-customer")?.addEventListener("click", modalAddCustomer);
